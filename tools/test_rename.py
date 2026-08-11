@@ -77,12 +77,28 @@ class TestPreservedInvariants(unittest.TestCase):
             ids.update(re.findall(r"CN-\d{3}", read(rel)))
         self.assertEqual(126, len(ids), f"expected 126 CN- ids, found {len(ids)}")
 
+    def test_ticket_ids_identical_to_main(self):
+        def ids_in(text):
+            return set(re.findall(r"CN-\d{3}", text))
+        current = ids_in(read("BACKLOG.md"))
+        try:
+            on_main = subprocess.run(
+                ["git", "show", "main:BACKLOG.md"],
+                cwd=ROOT, capture_output=True, text=True, check=True,
+            ).stdout
+        except subprocess.CalledProcessError as exc:
+            self.fail(f"cannot read BACKLOG.md from main: {exc}")
+        self.assertEqual(ids_in(on_main), current, "the set of CN- ticket IDs changed")
+
     def test_issue_map_byte_identical_to_main(self):
         current = (ROOT / "tools" / ".issue-map.json").read_bytes()
-        on_main = subprocess.run(
-            ["git", "show", "main:tools/.issue-map.json"],
-            cwd=ROOT, capture_output=True, check=True,
-        ).stdout
+        try:
+            on_main = subprocess.run(
+                ["git", "show", "main:tools/.issue-map.json"],
+                cwd=ROOT, capture_output=True, check=True,
+            ).stdout
+        except subprocess.CalledProcessError as exc:
+            self.fail(f"cannot read tools/.issue-map.json from main: {exc}")
         self.assertEqual(on_main, current, "tools/.issue-map.json was modified")
 
     def test_backlog_tool_parses(self):
@@ -90,9 +106,20 @@ class TestPreservedInvariants(unittest.TestCase):
         ast.parse(src)  # raises SyntaxError on failure
 
     def test_roles_and_objects_untouched(self):
+        readme = read("Readme.md").lower()
+        for term in ("originator", "participant", "work package", "task envelope"):
+            self.assertIn(term, readme, f"'{term}' disappeared from Readme")
+
+    def test_hermes_references_survive(self):
+        # hermes-agent / hermes-python name a real external project
+        # (worker adapter #1), not the product being renamed. Broad
+        # substitution must never touch them.
         readme = read("Readme.md")
-        for term in ("originator", "participant", "work package"):
-            self.assertIn(term, readme.lower(), f"'{term}' disappeared from Readme")
+        self.assertIn("hermes-agent", readme)
+        self.assertIn("Hermes adapter", readme)
+        backlog = read("BACKLOG.md")
+        self.assertIn("Hermes adapter", backlog)
+        self.assertIn("hermes-python", backlog)
 
 
 class TestRenameArtifacts(unittest.TestCase):
