@@ -1,8 +1,11 @@
-![Consign: shipping tasks, not tokens](media/Consign_Shipping_Tasks_Not_Tokens.png)
+<p align="center">
+  <img src="media/Consign_Shipping_Tasks_Not_Tokens.png" alt="Consign: shipping tasks, not tokens">
+</p>
 
-*The whole protocol on one page — the four-stage task lifecycle, the trust model that makes delegation safe, and how this differs from tensor- and expert-parallel distribution.*
+<p align="center">
+  <em>The whole protocol on one page — the four-stage task lifecycle, the trust model that makes delegation safe, and how this differs from tensor- and expert-parallel distribution.</em>
+</p>
 
-**PRODUCT REQUIREMENTS DOCUMENT**
 
 # Consign
 
