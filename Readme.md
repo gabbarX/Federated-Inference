@@ -1,20 +1,21 @@
 **PRODUCT REQUIREMENTS DOCUMENT**
 
-# Consign
+# Bailment
 
 An open protocol for delegating agent work packages across organizational boundaries
 
-Working product definition · Version 0.2 · 10 August 2026
+Working product definition · Version 0.3 · 10 August 2026
 
 ![cover banner](media/cover_banner.png)
 
 *Task-level federation: complete local models collaborate through agent work packages rather than token-level WAN parallelism.*
+**Stale asset — regenerate.** This banner still shows the v0.1 `ROOT HERMES` name and a central-root topology; both were removed in v0.2 (D8, §7.1).
 
 > **Product thesis**
 > Ship tasks, not tokens. Each participant keeps its model, tools, data, and inner agent loop local; the federation exchanges only scoped work packages, progress, artifacts, evidence, and verified outcomes.
 
-> **Naming placeholder**
-> **CONSIGN** is a working name, chosen because a consignment is a sealed package with a manifest, a chain of custody, an attenuating authority to act on it, and a signed receipt — which is precisely this protocol's object model. It is a single find-and-replace away from whatever you settle on. The v0.1 name *Hermes Federation* was retired in v0.2 because the node runtime is now agent-runtime-agnostic (D8) and Hermes is one adapter, not the product; continuing to use another project's name for something they do not govern was a liability rather than an asset.
+> **Name**
+> **BAILMENT** is the product name, settled in ADR-0001. A bailment is the delivery of goods for a specific purpose, without transfer of ownership, under a duty of care, with an obligation to return them per instructions — and the holder's authority is bounded by that purpose. That is this protocol's object model: possession crosses an organizational boundary while ownership does not, authority attenuates and never widens, and the result must come back conforming to a declared schema. Two earlier names were retired: *Hermes Federation* in v0.2, because the node runtime became agent-runtime-agnostic (D8) and Hermes is one adapter rather than the product; and the working name *Consign* in v0.3, because a consignment is goods sent for sale, which implies the settlement semantics D13 removed from scope.
 
 | **STATUS**<br>**Draft for design review** | **DELIVERABLE**<br>**Open protocol + reference node + conformance suite** | **PRIMARY OWNER**<br>**TBD** |
 | --- | --- | --- |
@@ -23,15 +24,15 @@ Working product definition · Version 0.2 · 10 August 2026
 
 |  |  |
 | --- | --- |
-| **Product** | Consign (working name; formerly *Hermes Federation*) |
+| **Product** | Bailment (formerly Consign; earlier Hermes Federation) |
 | **Document** | Product Requirements Document |
-| **Version** | 0.2 |
+| **Version** | 0.3 |
 | **Status** | Draft for architecture, security, and implementer review |
 | **Date** | 10 August 2026 |
 | **Primary audience** | Protocol implementers, platform engineers, model operators, security reviewers, node operators |
 | **Implementation basis** | A standalone Go node daemon implementing a published extension profile of **A2A v1.0**. Agent runtimes attach through a thin worker-adapter interface; `hermes-agent` is adapter #1, not the substrate. |
 | **Delivery boundary** | Two independently operated nodes exchanging one deterministic task contract, plus a runnable conformance suite |
-| **Companion document** | `spec/consign-profile-v0.1.md` — the normative wire specification |
+| **Companion document** | `spec/bailment-profile-v0.1.md` — the normative wire specification |
 
 ### Revision history
 
@@ -39,6 +40,7 @@ Working product definition · Version 0.2 · 10 August 2026
 | --- | --- | --- | --- |
 | **0.1** | 10 Aug 2026 | Initial product definition for agent-level federation | TBD |
 | **0.2** | 10 Aug 2026 | Thirty architecture decisions resolved (Appendix A.5). Product repositioned from a Hermes consortium pilot to an open A2A profile with a runtime-agnostic node daemon. Identity moved to did:web; delegation made recursive under attenuable capability tokens; verification narrowed to deterministic-only; money removed from scope; §7.3, §8.5, §9.1, §13 and §14 rewritten. | TBD |
+| **0.3** | 11 Aug 2026 | Product renamed from Consign to Bailment (CN-002, ADR-0001). Extension namespace moved from the reserved `consign.example` placeholder to `bailment.dev`. Daemon renamed `consignd` → `bailment` with subcommands. No requirement, decision, or scope change. | TBD |
 
 ### Contents
 
@@ -60,19 +62,19 @@ Requirement tables carry a **Δ** column. `=` is unchanged from v0.1, `~` is mat
 
 ## 1 Executive summary
 
-Consign is an open protocol, published as an extension profile of **A2A v1.0**, that lets independently operated organizations delegate substantial agent work packages to one another without pooling GPUs, centralizing data, or agreeing on a shared agent runtime. It ships with a reference node daemon, a Hermes worker adapter, and a conformance suite that any implementer can run against their own endpoint.
+Bailment is an open protocol, published as an extension profile of **A2A v1.0**, that lets independently operated organizations delegate substantial agent work packages to one another without pooling GPUs, centralizing data, or agreeing on a shared agent runtime. It ships with a reference node daemon, a Hermes worker adapter, and a conformance suite that any implementer can run against their own endpoint.
 
 Each participant operates a complete local inference island: a node daemon, one or more locally resident specialist models, approved tools, private data connectors, and local sandboxes. A task originator decomposes an objective into coarse work packages, routes each package to a capable participant under an attenuable capability token, verifies returned artifacts deterministically, and synthesizes the final result. Any node can originate; there is no permanent root and no central operator.
 
 > **Decisive architecture choice**
-> Consign is agent-level federation, not federated learning and not WAN tensor parallelism. Remote nodes receive substantial autonomous work packages and complete many local model and tool calls before returning a result.
+> Bailment is agent-level federation, not federated learning and not WAN tensor parallelism. Remote nodes receive substantial autonomous work packages and complete many local model and tool calls before returning a result.
 
 ### The five choices that define the product
 
 | **Choice** | **What it means** | **Decision** |
 | --- | --- | --- |
 | **Open protocol, not a consortium** | The deliverable is a spec plus reference implementation. Adopters onboard alone, with no membership process and no central authority to petition. | D2 |
-| **Profile of A2A v1.0, not a new protocol** | Transport, task, message, and artifact semantics are inherited. Consign contributes declared extensions for constraints, delegation authority, budgets, verification, artifacts, and receipts. | D4 |
+| **Profile of A2A v1.0, not a new protocol** | Transport, task, message, and artifact semantics are inherited. Bailment contributes declared extensions for constraints, delegation authority, budgets, verification, artifacts, and receipts. | D4 |
 | **Identity anchored in DNS** | An organization *is* a domain. Keys are published as a did:web document; there is no CA to join and nobody to ask for permission. | D5 |
 | **Authority attenuates, never widens** | Every delegation carries a capability token that a downstream node verifies back to the originator's key. A node cannot grant what it was not given. | D18 |
 | **Verified means reproducible** | v1 federates only work whose output can be checked deterministically. Everything else is labelled `UNVERIFIED` and treated as such. | D14 |
@@ -82,8 +84,8 @@ Each participant operates a complete local inference island: a node daemon, one 
 | **Dimension** | **MVP definition** |
 | --- | --- |
 | **Topology** | Two independently operated nodes; symmetric — either may originate |
-| **Local stack** | Consign node daemon + worker adapter + OpenAI-compatible local inference server + local tools |
-| **Wire contract** | mTLS + A2A v1.0 JSON-RPC/SSE with the Consign extension set |
+| **Local stack** | Bailment node daemon + worker adapter + OpenAI-compatible local inference server + local tools |
+| **Wire contract** | mTLS + A2A v1.0 JSON-RPC/SSE with the Bailment extension set |
 | **Delegation unit** | Coarse task fulfilling a versioned task contract, not a model layer, expert, activation, or token |
 | **Trust posture** | Identity is DNS-anchored, authority is attenuable, execution is sandboxed by the daemon, results are untrusted until deterministically verified |
 | **Proof point** | One task contract (code review with patch and test evidence) runs across two organizations, survives node failure, refuses an out-of-policy tool, and passes the conformance suite |
@@ -113,10 +115,10 @@ Capacity alone is a weak argument in 2026: hosted inference is elastic, cheap, a
 
 | **If the need is…** | **The right answer is…** |
 | --- | --- |
-| More tokens per second of a general model | Rent hosted inference. Consign adds latency and governance for no gain. |
-| A specialist model or tool environment somebody else owns and will not export | Consign |
-| Computation over data that may not leave its owner's premises | Consign — no hosted vendor can do this at any price |
-| Many long-running agent branches, where local queueing is the bottleneck and peers have idle capacity | Consign, provided the work packages are coarse |
+| More tokens per second of a general model | Rent hosted inference. Bailment adds latency and governance for no gain. |
+| A specialist model or tool environment somebody else owns and will not export | Bailment |
+| Computation over data that may not leave its owner's premises | Bailment — no hosted vendor can do this at any price |
+| Many long-running agent branches, where local queueing is the bottleneck and peers have idle capacity | Bailment, provided the work packages are coarse |
 
 ### 2.3 Why cluster-style distribution is insufficient
 
@@ -440,14 +442,14 @@ The defining structural change in v0.2: **every site runs one symmetric daemon**
 ### 7.4 Repository layout
 
 ```text
-consign/
+bailment/
 ├── spec/                    # NORMATIVE. Versioned independently (spec-vX.Y).
-│   ├── consign-profile-v0.1.md
+│   ├── bailment-profile-v0.1.md
 │   ├── schemas/             # JSON Schema 2020-12 for every envelope
 │   ├── extensions/          # A2A extension declarations
 │   └── vectors/             # Signed test vectors for conformance
-├── node/                    # Go daemon (consignd)
-│   ├── cmd/consignd
+├── node/                    # Go daemon (bailment)
+│   ├── cmd/bailment
 │   └── internal/{transport,identity,authority,policy,state,exec,cas,verify,audit,route}
 ├── adapters/
 │   ├── hermes-python/       # Adapter #1
@@ -464,23 +466,23 @@ The daemon is **Go** (D23): a single static binary, no runtime to install, stron
 
 ## 8 Protocol and data model
 
-The normative contract lives in **`spec/consign-profile-v0.1.md`**. This section states only what a product reviewer needs.
+The normative contract lives in **`spec/bailment-profile-v0.1.md`**. This section states only what a product reviewer needs.
 
 ### 8.1 Relationship to A2A v1.0
 
-Consign is a **profile**, not a competitor. It inherits A2A's transport (JSON-RPC 2.0 over HTTPS with SSE), its `AgentCard`, `Task`, `Message`, `Part`, and `Artifact` objects, and its `Extension` mechanism. Everything Consign adds is a declared extension:
+Bailment is a **profile**, not a competitor. It inherits A2A's transport (JSON-RPC 2.0 over HTTPS with SSE), its `AgentCard`, `Task`, `Message`, `Part`, and `Artifact` objects, and its `Extension` mechanism. Everything Bailment adds is a declared extension:
 
 | **Extension** | **Adds** |
 | --- | --- |
-| `consign/constraints/v1` | Data class, organization allowlist, tool allowlist, network policy, side-effect class |
-| `consign/authority/v1` | Attenuable capability tokens, delegation depth, sub-delegate sets, provenance chain |
-| `consign/budget/v1` | Wall-clock, model-call, tool-call, and storage caveats that subdivide on delegation |
-| `consign/contract/v1` | Task contract identity: versioned input/output schema pair and verifiability class |
-| `consign/artifacts/v1` | Content addressing, holder-hosted retrieval, scoped grants, recipient encryption, pinning |
-| `consign/verification/v1` | Validator declarations, claim/evidence separation, result classification |
-| `consign/receipts/v1` | Co-signed observable-unit receipts and audit-chain linkage |
+| `bailment/constraints/v1` | Data class, organization allowlist, tool allowlist, network policy, side-effect class |
+| `bailment/authority/v1` | Attenuable capability tokens, delegation depth, sub-delegate sets, provenance chain |
+| `bailment/budget/v1` | Wall-clock, model-call, tool-call, and storage caveats that subdivide on delegation |
+| `bailment/contract/v1` | Task contract identity: versioned input/output schema pair and verifiability class |
+| `bailment/artifacts/v1` | Content addressing, holder-hosted retrieval, scoped grants, recipient encryption, pinning |
+| `bailment/verification/v1` | Validator declarations, claim/evidence separation, result classification |
+| `bailment/receipts/v1` | Co-signed observable-unit receipts and audit-chain linkage |
 
-> **v0.1's §8.5 REST API is withdrawn.** It specified `POST /v1/tasks`, `POST /v1/task-offers`, and friends while simultaneously claiming A2A compatibility. A2A is JSON-RPC; the two could not both be true. The only well-known HTTP paths Consign defines are `/.well-known/did.json`, `/.well-known/agent-card.json`, and the artifact and revocation endpoints.
+> **v0.1's §8.5 REST API is withdrawn.** It specified `POST /v1/tasks`, `POST /v1/task-offers`, and friends while simultaneously claiming A2A compatibility. A2A is JSON-RPC; the two could not both be true. The only well-known HTTP paths Bailment defines are `/.well-known/did.json`, `/.well-known/agent-card.json`, and the artifact and revocation endpoints.
 
 ### 8.2 The three objects that carry the design
 
@@ -797,7 +799,7 @@ Twenty-eight of v0.1's open questions are now closed (Appendix A.5). What remain
 
 | **Decision** | **Options** | **Recommended starting point** |
 | --- | --- | --- |
-| **Product name** | CONSIGN placeholder; alternatives | Choose before the spec goes public; one find-and-replace |
+| **Product name** | BAILMENT placeholder; alternatives | Choose before the spec goes public; one find-and-replace |
 | **Isolation runtime** | OCI/runc; gVisor; Firecracker; Kata | Start with OCI for reach; evaluate gVisor when hostile adapters become a real threat model |
 | **Token library** | Biscuit; macaroons; custom CBOR | Biscuit — attenuation is native rather than bolted on |
 | **Task contract registry** | In-repo only; per-org publication; a shared catalogue | In-repo for v0.1; publication rules once a second implementer appears |
@@ -807,7 +809,7 @@ Twenty-eight of v0.1's open questions are now closed (Appendix A.5). What remain
 | **Steering semantics** | Free-text steering; contract-scoped amendments only | Contract-scoped, so steering cannot smuggle content past the egress gate |
 
 > **The one thing to settle before Phase 0**
-> Whether the Consign extension set can be expressed as conformant A2A v1.0 extensions without violating its task semantics. Everything in this document rests on that answer, and it is cheap to find out.
+> Whether the Bailment extension set can be expressed as conformant A2A v1.0 extensions without violating its task semantics. Everything in this document rests on that answer, and it is cheap to find out.
 
 ## A Appendices
 
@@ -881,7 +883,7 @@ Note what the adapter cannot do: open a socket, read outside the sandbox, mint a
 
 ### A.4 Reference points
 
-- **A2A v1.0** — Linux Foundation; JSON-RPC 2.0 over HTTPS with SSE; `AgentCard`, `Task`, `Message`, `Part`, `Artifact`, `Extension`; SDKs in Python, JavaScript, Java, Go, and .NET. The transport, object model, and extension mechanism Consign profiles.
+- **A2A v1.0** — Linux Foundation; JSON-RPC 2.0 over HTTPS with SSE; `AgentCard`, `Task`, `Message`, `Part`, `Artifact`, `Extension`; SDKs in Python, JavaScript, Java, Go, and .NET. The transport, object model, and extension mechanism Bailment profiles.
 - **`hermes-agent`** — MIT-licensed Python agent runtime with an agent loop, provider abstraction, tool framework, isolated subagents, MCP support, and multiple terminal backends. Worker adapter #1; not the substrate.
 - **Biscuit / macaroons** — attenuable capability tokens with offline verification. The authority model.
 - **did:web** — DNS-anchored decentralized identifiers. The identity model.
