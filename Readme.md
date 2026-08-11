@@ -1,3 +1,7 @@
+![Consign: shipping tasks, not tokens](media/Consign_Shipping_Tasks_Not_Tokens.png)
+
+*The whole protocol on one page — the four-stage task lifecycle, the trust model that makes delegation safe, and how this differs from tensor- and expert-parallel distribution.*
+
 **PRODUCT REQUIREMENTS DOCUMENT**
 
 # Consign
@@ -18,6 +22,20 @@ Working product definition · Version 0.2 · 10 August 2026
 
 | **STATUS**<br>**Draft for design review** | **DELIVERABLE**<br>**Open protocol + reference node + conformance suite** | **PRIMARY OWNER**<br>**TBD** |
 | --- | --- | --- |
+
+## Start here
+
+New to the project? These three assets carry the idea faster than the specification below does. Watch or skim them before reading the requirement tables.
+
+| | Asset | Best for |
+| --- | --- | --- |
+| **1** | **The infographic at the top of this page** | The entire model at a glance: lifecycle, trust layer, and how Consign compares to tensor- and expert-parallel distribution. |
+| **2** | **▶ [Architecting the Inference Island — The Consign Protocol](media/Architecting_the_Inference_Island__The_Consign_Protocol.mp4)** *(full project explainer)* | Understanding what the project is and why it is built this way. **Start with this one.** |
+| **3** | **▶ [Anatomy of a Consign Task](media/Anatomy_of_a_Consign_Task.mp4)** *(task walkthrough)* | Following a single task end to end. Also linked from [§5 Product experience and task lifecycle](#5-product-experience-and-task-lifecycle), where that flow is specified normatively. |
+
+Both videos live in [`media/`](media/) and open in a player when you click through on GitHub. `media/Consign_Agent_Federation.pdf` is a slide-deck version of the same material.
+
+Then: §1 for the executive summary, §5 for the lifecycle, §7 for architecture, and `spec/consign-profile-v0.1.md` for the normative wire format. Contributors should also read [`CLAUDE.md`](CLAUDE.md) and [`BACKLOG.md`](BACKLOG.md).
 
 ## 0 Document control
 
@@ -222,6 +240,9 @@ Any organization that controls a domain name should be able to run one binary, p
 
 *Figure 1. The federation boundary surrounds complete remote work packages, not individual inference steps.*
 **Stale asset — regenerate.** This diagram still shows the v0.1 two-phase offer/lease handshake, which was removed in v0.2 (D21).
+
+> **▶ Watch: [Anatomy of a Consign Task](media/Anatomy_of_a_Consign_Task.mp4)**
+> A walkthrough of one task from decomposition through to a verified result. Useful alongside §5.1 below if you want the flow narrated before reading it as numbered steps. For the wider "why", see [Architecting the Inference Island](media/Architecting_the_Inference_Island__The_Consign_Protocol.mp4).
 
 ### 5.1 Originator flow
 

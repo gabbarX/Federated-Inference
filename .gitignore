@@ -9,7 +9,8 @@ __pycache__
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-media
+# `media` (Django's user-upload dir) came from the gitignore template. This repo has no
+# Django app, and media/ holds committed README assets, so the rule is deliberately absent.
 
 # If your build process includes running collectstatic, then you probably don't need or want to include staticfiles/
 # in your Git repository. Update and uncomment the following line accordingly.
