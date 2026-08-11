@@ -394,3 +394,6 @@ Cargo.lock
 *.pdb
 
 # End of https://www.toptal.com/developers/gitignore/api/python,django,rust,goland
+### Agent scratch ###
+# Subagent-driven-development workspace: ledgers, briefs, review packages.
+.superpowers/
