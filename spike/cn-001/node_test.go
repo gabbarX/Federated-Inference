@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"testing"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
@@ -67,7 +68,8 @@ type node struct {
 
 // startNode brings up an a2asrv JSON-RPC server plus its public Agent Card on
 // loopback HTTP, declaring exts in capabilities.extensions[].
-func startNode(t testingT, name string, exts []a2a.AgentExtension) *node {
+func startNode(t *testing.T, name string, exts []a2a.AgentExtension) *node {
+	t.Helper()
 	srv := httptest.NewUnstartedServer(nil)
 	url := "http://" + srv.Listener.Addr().String()
 	card := consignCard(name, url, exts)
@@ -87,13 +89,6 @@ func startNode(t testingT, name string, exts []a2a.AgentExtension) *node {
 	t.Cleanup(srv.Close)
 
 	return &node{Card: card, URL: url}
-}
-
-// testingT is the slice of *testing.T these helpers need, kept small so the
-// helpers stay usable from any test in the package.
-type testingT interface {
-	Cleanup(func())
-	Fatalf(format string, args ...any)
 }
 
 // headerRecorder is an http.RoundTripper that keeps the response headers of the
@@ -126,7 +121,8 @@ func (h *headerRecorder) Last() http.Header {
 
 // newClient builds an a2aclient bound to card over the JSON-RPC binding, with a
 // header recorder wrapped around its HTTP transport.
-func newClient(t testingT, card *a2a.AgentCard, interceptors ...a2aclient.CallInterceptor) (*a2aclient.Client, *headerRecorder) {
+func newClient(t *testing.T, card *a2a.AgentCard, interceptors ...a2aclient.CallInterceptor) (*a2aclient.Client, *headerRecorder) {
+	t.Helper()
 	rec := &headerRecorder{inner: http.DefaultTransport}
 	client, err := a2aclient.NewFromCard(
 		context.Background(),

@@ -12,10 +12,11 @@ import (
 )
 
 // This file holds the whole offline capability-token verification path (§7.1,
-// §7.3, §7.4). It deliberately imports nothing capable of I/O, which is what
-// makes "verifiable with zero network calls" a structural property rather than
-// an observation about one test run. TestChainVerificationCannotReachTheNetwork
-// enforces that.
+// §7.3, §7.4). It deliberately imports no network-capable package -- not "no
+// I/O", which would be false, since fmt reaches os and crypto/ed25519 reaches
+// crypto/rand. No network-capable package is the claim that matters and the one
+// TestChainVerificationCannotReachTheNetwork checks, for this file's direct
+// imports; see that test's comment for the limits of its scope.
 //
 // Out of scope here by controller resolution: did:web resolution, revocation,
 // mTLS and WebPKI. Organization keys arrive pre-pinned in a Keyring (§4.5),
@@ -76,6 +77,8 @@ var (
 	ErrBadSignature   = errors.New("signature does not verify")
 	ErrNotOriginator  = errors.New("root token not signed by the originator organization")
 	ErrExpired        = errors.New("token has expired")
+	ErrDeadlinePassed = errors.New("deadline caveat is not satisfiable")
+	ErrNotPermitted   = errors.New("verifying organization is not permitted by the token")
 	ErrDepthExhausted = errors.New("remaining delegation depth is negative")
 	ErrChainShape     = errors.New("chain link count must not exceed one")
 	ErrWidened        = errors.New("child token widens a caveat")
@@ -135,12 +138,24 @@ func lineage(tok Token) ([]Token, error) {
 	return append(ancestors, tok), nil
 }
 
-// VerifyChain performs the offline checks of §7.3 that are in scope for this
-// spike: every link's signature against a pinned key (step 2, with pinning in
-// place of did:web), that each link only narrows (step 3), that the leaf has not
-// expired (step 4) and that the remaining depth is not negative (step 6). It
-// makes no network calls and takes no context, resolver or client.
-func VerifyChain(keys Keyring, tok Token, now time.Time) error {
+// VerifyChain runs every check §7.3 requires of a receiving node, from the point
+// of view of the organization named by selfOrg. Nothing in the enumeration is
+// skipped:
+//
+//   - step 1, verify the root signature -- done; the did:web *resolution* half is
+//     replaced by the pre-pinned Keyring (§4.5), which is the only part the
+//     controller placed out of scope.
+//   - step 2, every link signed by the organization that produced it.
+//   - step 3, every link only narrows, per the §7.4 table in CheckAttenuation.
+//   - step 4, expires_at has not passed and the deadline caveat is satisfiable.
+//   - step 5, selfOrg appears in allowed_organizations and, when chain is
+//     non-empty, in the parent's allowed_delegates.
+//   - step 6, remaining depth is >= 0.
+//
+// It makes no network calls and takes no context, resolver or client, so the
+// receiving node cannot contact the originator to resolve a failure even by
+// accident -- which is what §7.3's closing sentence demands.
+func VerifyChain(keys Keyring, selfOrg string, tok Token, now time.Time) error {
 	links, err := lineage(tok)
 	if err != nil {
 		return err
@@ -163,6 +178,29 @@ func VerifyChain(keys Keyring, tok Token, now time.Time) error {
 	}
 	if now.After(expiry) {
 		return fmt.Errorf("%w: %s expired at %s", ErrExpired, tok.TokenID, tok.ExpiresAt)
+	}
+
+	// §7.3 step 4, second clause. A deadline already in the past cannot be met,
+	// so the task is unacceptable however much budget remains.
+	deadline, err := time.Parse(time.RFC3339, tok.Caveats.Budget.Deadline)
+	if err != nil {
+		return fmt.Errorf("parsing budget.deadline of %s: %w", tok.TokenID, err)
+	}
+	if now.After(deadline) {
+		return fmt.Errorf("%w: %s deadline was %s", ErrDeadlinePassed, tok.TokenID, tok.Caveats.Budget.Deadline)
+	}
+
+	// §7.3 step 5. Pure offline logic: it needs only the verifier's own identity,
+	// so none of the did:web/mTLS/WebPKI exclusions reach it.
+	if !slices.Contains(tok.Caveats.AllowedOrganizations, selfOrg) {
+		return fmt.Errorf("%w: %s is not in allowed_organizations of %s", ErrNotPermitted, selfOrg, tok.TokenID)
+	}
+	if len(tok.Chain) > 0 {
+		parent := tok.Chain[0]
+		if !slices.Contains(parent.Caveats.AllowedDelegates, selfOrg) {
+			return fmt.Errorf("%w: %s is not in allowed_delegates of parent %s",
+				ErrNotPermitted, selfOrg, parent.TokenID)
+		}
 	}
 
 	if tok.Caveats.MaxDelegationDepth < 0 {

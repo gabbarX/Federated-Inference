@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -102,29 +103,39 @@ func testChain(t *testing.T, now time.Time) (root, child Token, keys Keyring, de
 	return root, child, keys, privB
 }
 
+// selfOrg is the organization doing the verifying: the delegate that received the
+// child task. §7.3 step 5 requires it to appear in the child's
+// allowed_organizations and in the root's allowed_delegates, and the fixture puts
+// orgC in both.
+const selfOrg = orgC
+
 // TestNarrowingChildVerifiesOffline is the first half of verification 4: a child
-// token that narrows per §7.4 verifies against the originator's pinned key with
-// no I/O of any kind.
+// token that narrows per §7.4 verifies against the originator's pinned key
+// without touching the network.
 func TestNarrowingChildVerifiesOffline(t *testing.T) {
 	now := time.Now()
 	_, child, keys, _ := testChain(t, now)
 
-	if err := VerifyChain(keys, child, now); err != nil {
+	if err := VerifyChain(keys, selfOrg, child, now); err != nil {
 		t.Fatalf("VerifyChain() on a correctly narrowed child = %v, want nil", err)
 	}
 }
 
 // TestChainVerificationFailures covers the remaining §7.3 checks VerifyChain
-// performs, so that no rejection path in token.go is left unexercised. In
-// particular it pins down "verifies against the originator key": a token whose
-// caveats were edited after signing, or whose root was signed by a key that is
-// not the originator's, does not verify.
+// performs, so that no rejection path in token.go is left unexercised: one case
+// per §7.3 step, plus the chain-shape guard. In particular it pins down "verifies
+// against the originator key" -- a token whose caveats were edited after signing,
+// or whose root was signed by a key that is not the originator's, does not verify.
 func TestChainVerificationFailures(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name    string
-		mutate  func(t *testing.T, root, child Token, keys Keyring, delegate ed25519.PrivateKey) (Token, Keyring)
+		name   string
+		mutate func(t *testing.T, root, child Token, keys Keyring, delegate ed25519.PrivateKey) (Token, Keyring)
+		// org is the verifying organization; empty means the legitimate delegate.
+		org string
+		// after advances the verification clock past "now".
+		after   time.Duration
 		wantErr error
 	}{
 		{
@@ -160,7 +171,38 @@ func TestChainVerificationFailures(t *testing.T) {
 			mutate: func(_ *testing.T, _, child Token, keys Keyring, _ ed25519.PrivateKey) (Token, Keyring) {
 				return child, keys
 			},
+			after:   2 * time.Hour,
 			wantErr: ErrExpired,
+		},
+		{
+			// §7.3 step 4, second clause. The token is still valid but its
+			// deadline caveat can no longer be met, so the task is unacceptable.
+			name: "deadline caveat is no longer satisfiable",
+			mutate: func(_ *testing.T, _, child Token, keys Keyring, _ ed25519.PrivateKey) (Token, Keyring) {
+				return child, keys
+			},
+			after:   17 * time.Minute, // past the 15m deadline, inside the 20m expiry
+			wantErr: ErrDeadlinePassed,
+		},
+		{
+			// §7.3 step 5, first clause.
+			name: "verifier is not in allowed_organizations",
+			mutate: func(_ *testing.T, _, child Token, keys Keyring, _ ed25519.PrivateKey) (Token, Keyring) {
+				return child, keys
+			},
+			org:     "did:web:outsider.example",
+			wantErr: ErrNotPermitted,
+		},
+		{
+			// §7.3 step 5, second clause. orgA is in the child's
+			// allowed_organizations but was never named as a delegate by the
+			// root, so it may hold the task but may not have been handed it.
+			name: "verifier is not in the parent's allowed_delegates",
+			mutate: func(_ *testing.T, _, child Token, keys Keyring, _ ed25519.PrivateKey) (Token, Keyring) {
+				return child, keys
+			},
+			org:     orgA,
+			wantErr: ErrNotPermitted,
 		},
 		{
 			// §7.3 step 6 / §7.6: the receiver checks its own remaining depth,
@@ -196,14 +238,12 @@ func TestChainVerificationFailures(t *testing.T) {
 			root, child, keys, delegate := testChain(t, now)
 			tok, keys := tc.mutate(t, root, child, keys, delegate)
 
-			// The expiry case is the one that needs a clock past the token's
-			// lifetime; every other case must fail at "now".
-			at := now
-			if tc.wantErr == ErrExpired {
-				at = now.Add(2 * time.Hour)
+			org := tc.org
+			if org == "" {
+				org = selfOrg
 			}
 
-			err := VerifyChain(keys, tok, at)
+			err := VerifyChain(keys, org, tok, now.Add(tc.after))
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("VerifyChain() = %v, want %v", err, tc.wantErr)
 			}
@@ -214,8 +254,9 @@ func TestChainVerificationFailures(t *testing.T) {
 
 // TestWideningChildRejected is the second half of verification 4: every row of
 // the §7.4 attenuation table is exercised by a child that widens exactly that
-// caveat and is re-signed by the delegate, so the only possible ground for
-// rejection is the attenuation rule itself.
+// caveat and is re-signed by the delegate, so a broken signature cannot
+// masquerade as an attenuation failure. Each case asserts the rejection is
+// ErrWidened and names the caveat, not merely that some error came back.
 func TestWideningChildRejected(t *testing.T) {
 	now := time.Now()
 	root, child, keys, delegateKey := testChain(t, now)
@@ -267,23 +308,50 @@ func TestWideningChildRejected(t *testing.T) {
 			if err != nil {
 				t.Fatalf("re-signing widened child: %v", err)
 			}
-			if err := VerifyChain(keys, signed, now); err == nil {
+
+			err = VerifyChain(keys, selfOrg, signed, now)
+			if err == nil {
 				t.Fatalf("VerifyChain() on a child widening %s = nil, want rejection", tc.caveat)
-			} else {
-				t.Logf("rejected: %v", err)
 			}
+			// "Rejected" is not enough: VerifyChain has seven other grounds for
+			// refusal that run before CheckAttenuation, so a non-nil error alone
+			// would not show the §7.4 row is what caught this. Pin the reason and
+			// the offending caveat, which §7.3 requires be identified.
+			if !errors.Is(err, ErrWidened) {
+				t.Fatalf("VerifyChain() on a child widening %s = %v, want %v",
+					tc.caveat, err, ErrWidened)
+			}
+			if !strings.Contains(err.Error(), tc.caveat) {
+				t.Fatalf("rejection of a child widening %s does not name that caveat: %v",
+					tc.caveat, err)
+			}
+			t.Logf("rejected: %v", err)
 		})
 	}
 }
 
-// TestChainVerificationCannotReachTheNetwork is the "zero network calls"
-// property of verification 4, asserted structurally rather than behaviourally:
-// token.go, which holds the whole verification path, is not allowed to import
-// anything capable of I/O. None of the permitted imports transitively reach
-// net, net/http or os, so the property holds for the dependency closure and not
-// merely for the code paths this test happens to exercise.
+// TestChainVerificationCannotReachTheNetwork guards the "zero network calls"
+// property of verification 4 structurally rather than behaviourally.
+//
+// Scope, stated precisely, because this is easy to overclaim: parser.ImportsOnly
+// reads the *direct* imports of token.go and nothing else. It is not a
+// transitive-closure assertion, and no test here is. Two things make it
+// sufficient anyway:
+//
+//   - VerifyChain's signature is (Keyring, string, Token, time.Time). There is no
+//     context.Context, client, resolver or interface parameter, so there is no
+//     seam through which a caller could inject a network call, and every helper
+//     it reaches lives in this same file.
+//   - The eight packages below contain no network-capable package. The transitive
+//     closure was checked separately with `go list -deps` and the verbatim command
+//     and output are recorded in the task report; it is not asserted here because
+//     consign.go imports a2a, which reaches net via github.com/google/uuid, so a
+//     package-level `go list -deps` assertion is unavailable in this layout.
+//
+// The claim is "no network-capable package", not "no I/O": fmt reaches os and
+// crypto/ed25519 reaches crypto/rand. Neither can open a socket.
 func TestChainVerificationCannotReachTheNetwork(t *testing.T) {
-	allowed := []string{
+	nonNetworkStdlib := []string{
 		"crypto/ed25519",
 		"encoding/base64",
 		"encoding/json",
@@ -306,9 +374,10 @@ func TestChainVerificationCannotReachTheNetwork(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unquoting import %s: %v", imp.Path.Value, err)
 		}
-		if !slices.Contains(allowed, path) {
-			t.Fatalf("token.go imports %q, which is not on the no-I/O allowlist %v", path, allowed)
+		if !slices.Contains(nonNetworkStdlib, path) {
+			t.Fatalf("token.go directly imports %q, which is not on the known-non-network allowlist %v",
+				path, nonNetworkStdlib)
 		}
 	}
-	t.Logf("token.go imports %d packages, all on the no-I/O allowlist", len(f.Imports))
+	t.Logf("token.go directly imports %d packages, all known non-network", len(f.Imports))
 }
