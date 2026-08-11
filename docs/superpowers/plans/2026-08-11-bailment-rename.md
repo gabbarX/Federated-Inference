@@ -425,6 +425,7 @@ git commit -m "spec: rename Consign profile to Bailment, resolve note N1 (CN-002
 **Interfaces:**
 - Consumes: Task 1's `test_prd_version_bumped`, `test_cover_banner_annotated`, `test_roles_and_objects_untouched`; Task 3's new spec filename.
 - Produces: the final `Readme.md`. Nothing depends on it.
+- Note: `Readme.md` is wholly exempt in `CONSIGN_ALLOWLIST`, so no test enforces a specific residual-hit count — Step 5 below is a manual sanity check, not a test gate.
 
 - [ ] **Step 1: Apply the identifier substitutions**
 
@@ -490,7 +491,7 @@ cd "$(git rev-parse --show-toplevel)"
 grep -in "consign" Readme.md
 ```
 
-Expected: exactly two hits — the "Name" blockquote and the §0 Product row, both reading "Consign" as retired history. Any other hit is a miss.
+Expected: three hits, all deliberate history — the "Name" blockquote, the §0 Product row, and the new v0.3 revision-history row (Step 3), which legitimately names `consign.example` and `consignd` as the identifiers that changed. Any hit outside those three lines is a miss.
 
 - [ ] **Step 6: Run the Readme tests to verify they pass**
 
