@@ -6,9 +6,6 @@
   <em>The whole protocol on one page — the four-stage task lifecycle, the trust model that makes delegation safe, and how this differs from tensor- and expert-parallel distribution.</em>
 </p>
 
-
-# Consign
-
 An open protocol for delegating agent work packages across organizational boundaries
 
 Working product definition · Version 0.2 · 10 August 2026
