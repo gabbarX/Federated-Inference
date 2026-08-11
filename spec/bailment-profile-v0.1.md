@@ -1,4 +1,4 @@
-# The Consign Profile of A2A v1.0
+# The Bailment Profile of A2A v1.0
 
 **Specification version:** 0.1 (draft) · **Date:** 10 August 2026 · **Status:** Draft for implementer review
 **Editor:** TBD · **Companion document:** `../Hermes_Federation_PRD_v0.1.md` (product requirements, v0.2)
@@ -7,8 +7,6 @@
 
 ## Editorial notes for this draft
 
-> **N1 — Name.** `CONSIGN` and the extension namespace `https://consign.example/ext/...` are placeholders. Both are a single find-and-replace away from final. Do not publish until settled.
->
 > **N2 — A2A method names.** This draft references A2A v1.0 RPC methods as `message/send`, `message/stream`, `tasks/get`, `tasks/cancel`, and `tasks/resubscribe`, and the Agent Card path as `/.well-known/agent-card.json`. **Every one of these MUST be pinned against the normative A2A v1.0 document during the Phase 0 spike** before this draft advances. Where this profile and A2A disagree, A2A wins and this document is wrong.
 >
 > **N3 — What Phase 0 must prove.** That §6 through §12 can be expressed as conformant A2A `Extension` declarations without altering A2A task semantics. If any extension requires changing how A2A tasks behave, this profile is the wrong shape and must be redesigned before implementation begins.
@@ -19,7 +17,7 @@
 
 ### 1.1 What this specifies
 
-This document specifies **Consign**, a profile of the Agent2Agent protocol (A2A) v1.0 for delegating bounded, autonomous agent work packages across organizational boundaries. It defines:
+This document specifies **Bailment**, a profile of the Agent2Agent protocol (A2A) v1.0 for delegating bounded, autonomous agent work packages across organizational boundaries. It defines:
 
 - how an organization establishes identity without a certificate authority (§4);
 - how a node advertises what it can do in a machine-checkable way (§5, §6);
@@ -63,7 +61,7 @@ A node **MUST** advertise its profiles in its Agent Card (§5.2) and **MUST NOT*
 
 ### 2.1 Inherited without modification
 
-Consign inherits and **MUST NOT** alter:
+Bailment inherits and **MUST NOT** alter:
 
 - **Transport.** JSON-RPC 2.0 over HTTPS, with Server-Sent Events for streaming.
 - **Object model.** `AgentCard`, `AgentSkill`, `Task`, `Message`, `Part`, `Artifact`, `Extension`.
@@ -72,17 +70,17 @@ Consign inherits and **MUST NOT** alter:
 
 ### 2.2 Contributed extensions
 
-Every Consign addition is an A2A extension. A node **MUST** declare each extension it supports in its Agent Card and **MUST** reject a task carrying a required extension it has not declared.
+Every Bailment addition is an A2A extension. A node **MUST** declare each extension it supports in its Agent Card and **MUST** reject a task carrying a required extension it has not declared.
 
 | URI | Short name | Section | Required by CORE |
 | --- | --- | --- | --- |
-| `https://consign.example/ext/contract/v1` | `contract` | §6 | Yes |
-| `https://consign.example/ext/constraints/v1` | `constraints` | §7.2 | Yes |
-| `https://consign.example/ext/authority/v1` | `authority` | §7 | Yes (depth 0 only in CORE) |
-| `https://consign.example/ext/budget/v1` | `budget` | §7.5 | Yes |
-| `https://consign.example/ext/artifacts/v1` | `artifacts` | §10 | Yes |
-| `https://consign.example/ext/verification/v1` | `verification` | §11 | Yes |
-| `https://consign.example/ext/receipts/v1` | `receipts` | §12 | No |
+| `https://bailment.dev/ext/contract/v1` | `contract` | §6 | Yes |
+| `https://bailment.dev/ext/constraints/v1` | `constraints` | §7.2 | Yes |
+| `https://bailment.dev/ext/authority/v1` | `authority` | §7 | Yes (depth 0 only in CORE) |
+| `https://bailment.dev/ext/budget/v1` | `budget` | §7.5 | Yes |
+| `https://bailment.dev/ext/artifacts/v1` | `artifacts` | §10 | Yes |
+| `https://bailment.dev/ext/verification/v1` | `verification` | §11 | Yes |
+| `https://bailment.dev/ext/receipts/v1` | `receipts` | §12 | No |
 
 ### 2.3 Extension criticality
 
@@ -92,7 +90,7 @@ Each extension declaration carries `required: true|false`. A **required** extens
 
 ### 2.4 Terminology map
 
-| A2A term | Consign usage |
+| A2A term | Bailment usage |
 | --- | --- |
 | Agent | **Node** — one daemon at one organization |
 | Agent Card | Node's signed capability declaration, profiled in §5 |
@@ -134,7 +132,7 @@ These hold across every profile. A conformance failure on any one is a security 
 
 An organization is identified by a DNS domain. Its identifier is the did:web DID for that domain, e.g. `did:web:lab-a.example`.
 
-An organization **MUST** publish a DID document at `https://<domain>/.well-known/did.json`, served over TLS with a WebPKI-valid certificate for `<domain>`. The document **MUST** contain at least one `assertionMethod` verification key (the **organization key**) and **MUST** declare a `consignRevocation` service endpoint.
+An organization **MUST** publish a DID document at `https://<domain>/.well-known/did.json`, served over TLS with a WebPKI-valid certificate for `<domain>`. The document **MUST** contain at least one `assertionMethod` verification key (the **organization key**) and **MUST** declare a `bailmentRevocation` service endpoint.
 
 ```json
 {
@@ -148,9 +146,9 @@ An organization **MUST** publish a DID document at `https://<domain>/.well-known
   }],
   "assertionMethod": ["did:web:lab-a.example#org-2026-08"],
   "service": [{
-    "id": "did:web:lab-a.example#consign-revocation",
-    "type": "ConsignRevocation",
-    "serviceEndpoint": "https://lab-a.example/.well-known/consign-revocation.json"
+    "id": "did:web:lab-a.example#bailment-revocation",
+    "type": "BailmentRevocation",
+    "serviceEndpoint": "https://lab-a.example/.well-known/bailment-revocation.json"
   }]
 }
 ```
@@ -167,7 +165,7 @@ A node has a **node key** and a **node credential**: a short-lived assertion sig
 
 ```json
 {
-  "typ": "consign.node-credential/v1",
+  "typ": "bailment.node-credential/v1",
   "org": "did:web:lab-a.example",
   "node_id": "lab-a-coding-1",
   "endpoint": "https://coding-1.lab-a.example/a2a",
@@ -180,7 +178,7 @@ A node has a **node key** and a **node credential**: a short-lived assertion sig
 
 ### 4.3 Transport binding
 
-All Consign traffic **MUST** use mutually authenticated TLS 1.3.
+All Bailment traffic **MUST** use mutually authenticated TLS 1.3.
 
 A verifier **MUST** reject a connection unless **all** of the following hold:
 
@@ -193,11 +191,11 @@ A verifier **MUST** reject a connection unless **all** of the following hold:
 
 ### 4.4 Revocation
 
-An organization **MUST** serve a signed revocation list at its `ConsignRevocation` endpoint.
+An organization **MUST** serve a signed revocation list at its `BailmentRevocation` endpoint.
 
 ```json
 {
-  "typ": "consign.revocation/v1",
+  "typ": "bailment.revocation/v1",
   "org": "did:web:lab-a.example",
   "issued_at": "2026-08-10T09:00:00Z",
   "next_update": "2026-08-10T09:30:00Z",
@@ -225,9 +223,9 @@ A consumer **MAY** pin an organization key for a known counterparty. A pinned ke
 
 A node **MUST** serve its Agent Card at `/.well-known/agent-card.json`. The card **MUST** be signed by an organization key and **MUST** carry `issued_at` and `expires_at`. A consumer **MUST** reject a card whose signature, issuer, freshness, or schema fails validation, and **MUST NOT** compose an envelope for a node whose card it has not validated (I3).
 
-### 5.2 Consign profile block
+### 5.2 Bailment profile block
 
-The card carries a Consign block alongside standard A2A fields.
+The card carries a Bailment block alongside standard A2A fields.
 
 ```json
 {
@@ -239,15 +237,15 @@ The card carries a Consign block alongside standard A2A fields.
       "description": "Discovery only; never used for eligibility.", "tags": ["code"] }
   ],
   "extensions": [
-    { "uri": "https://consign.example/ext/contract/v1",      "required": true },
-    { "uri": "https://consign.example/ext/constraints/v1",   "required": true },
-    { "uri": "https://consign.example/ext/authority/v1",     "required": true },
-    { "uri": "https://consign.example/ext/budget/v1",        "required": true },
-    { "uri": "https://consign.example/ext/artifacts/v1",     "required": true },
-    { "uri": "https://consign.example/ext/verification/v1",  "required": true }
+    { "uri": "https://bailment.dev/ext/contract/v1",      "required": true },
+    { "uri": "https://bailment.dev/ext/constraints/v1",   "required": true },
+    { "uri": "https://bailment.dev/ext/authority/v1",     "required": true },
+    { "uri": "https://bailment.dev/ext/budget/v1",        "required": true },
+    { "uri": "https://bailment.dev/ext/artifacts/v1",     "required": true },
+    { "uri": "https://bailment.dev/ext/verification/v1",  "required": true }
   ],
 
-  "consign": {
+  "bailment": {
     "spec_version": "0.1",
     "profiles": ["CORE"],
     "org": "did:web:lab-a.example",
@@ -326,7 +324,7 @@ Declaring a role creates no obligation on any consumer to use it, and confers no
 
 ### 5.5 Declared versus observed
 
-Every field under `consign.declared` is an unverifiable assertion by the node about its own internals. A consumer:
+Every field under `bailment.declared` is an unverifiable assertion by the node about its own internals. A consumer:
 
 - **MUST NOT** use any `declared` field as an input to ranking (§13.4);
 - **MAY** use `declared` fields for eligibility filtering, since a false claim there produces a task the node cannot fulfil, which the consumer then observes;
@@ -364,11 +362,11 @@ A CORE implementation **MUST** support `DETERMINISTIC`. It **MAY** support the o
 
 ```json
 {
-  "typ": "consign.contract/v1",
+  "typ": "bailment.contract/v1",
   "id": "code-review/v1",
   "verifiability": "DETERMINISTIC",
-  "input_schema": "https://consign.example/contracts/code-review/v1/input.json",
-  "output_schema": "https://consign.example/contracts/code-review/v1/output.json",
+  "input_schema": "https://bailment.dev/contracts/code-review/v1/input.json",
+  "output_schema": "https://bailment.dev/contracts/code-review/v1/output.json",
   "validators": [
     { "name": "apply_patch",      "kind": "process", "must_pass": true },
     { "name": "run_tests",        "kind": "process", "must_pass": true },
@@ -399,7 +397,7 @@ Tokens **MUST** be attenuable in the narrowing direction only, **MUST** be verif
 
 ```json
 {
-  "typ": "consign.token/v1",
+  "typ": "bailment.token/v1",
   "token_id": "tok_019fe2",
   "originator": "did:web:lab-a.example",
   "root_task_id": "task_019fe2",
@@ -547,7 +545,7 @@ Submission is a single A2A `message/send` (or `message/stream`) carrying the tas
 
 ```json
 {
-  "schema": "consign.task/v1",
+  "schema": "bailment.task/v1",
   "task_id": "task_019fe2",
   "parent_task_id": null,
   "idempotency_key": "b0d1...",
@@ -560,7 +558,7 @@ Submission is a single A2A `message/send` (or `message/stream`) carrying the tas
     "notes": "Focus on JWT validation and session fixation",
     "artifact_refs": ["cas://sha256/870d..."]
   },
-  "token": { "...": "consign.token/v1 as in §7.1" },
+  "token": { "...": "bailment.token/v1 as in §7.1" },
   "verification": {
     "validators": ["apply_patch", "run_tests"],
     "run_by": "consumer"
@@ -589,7 +587,7 @@ A producer accepting a task **MUST** respond with a lease and stream cursor, and
   "lease": { "lease_id": "lease_77c", "expires_at": "2026-08-10T09:30:00Z",
              "heartbeat_seconds": 10 },
   "stream": { "cursor": 1 },
-  "grant_endpoint": "https://coding-1.lab-a.example/consign/artifacts"
+  "grant_endpoint": "https://coding-1.lab-a.example/bailment/artifacts"
 }
 ```
 
@@ -689,7 +687,7 @@ Every artifact carries an immutable metadata record:
 ```json
 {
   "digest": "cas://sha256/870d...",
-  "media_type": "application/vnd.consign.patch",
+  "media_type": "application/vnd.bailment.patch",
   "size": 20481,
   "label": "CONSORTIUM",
   "producer": "did:web:company-c.example",
@@ -709,7 +707,7 @@ A grant authorizes one organization to retrieve one set of digests for a bounded
 
 ```json
 {
-  "typ": "consign.grant/v1",
+  "typ": "bailment.grant/v1",
   "task_id": "task_019fe2",
   "recipient": "did:web:company-c.example",
   "digests": ["cas://sha256/870d..."],
@@ -744,7 +742,7 @@ Acceptance is a consumer decision made on evidence the consumer produced. A prod
 
 ```json
 {
-  "schema": "consign.result/v1",
+  "schema": "bailment.result/v1",
   "task_id": "task_019fe2",
   "contract": { "id": "code-review/v1", "digest": "sha256:9c4e..." },
   "verifiability": "DETERMINISTIC",
@@ -822,7 +820,7 @@ Model calls, token counts, and GPU-hours **MUST NOT** appear in a receipt. They 
 
 ```json
 {
-  "typ": "consign.receipt/v1",
+  "typ": "bailment.receipt/v1",
   "task_id": "task_019fe2",
   "consumer": "did:web:lab-a.example",
   "producer": "did:web:company-c.example",
@@ -855,7 +853,7 @@ Discovery conveys no trust (I1). A consumer **MUST** re-resolve and re-verify ev
 
 ```json
 {
-  "typ": "consign.index/v1",
+  "typ": "bailment.index/v1",
   "publisher": "did:web:anchor-h.example",
   "issued_at": "2026-08-10T09:00:00Z",
   "expires_at": "2026-08-10T10:00:00Z",
@@ -1016,7 +1014,7 @@ Extracted to `spec/schemas/` as a build step; the definitions inline above are n
 | `did-document.json` | §4.1 |
 | `node-credential.json` | §4.2 |
 | `revocation-list.json` | §4.4 |
-| `agent-card-consign.json` | §5.2 |
+| `agent-card-bailment.json` | §5.2 |
 | `contract.json` | §6.3 |
 | `token.json` | §7.1 |
 | `task-envelope.json` | §8.3 |
