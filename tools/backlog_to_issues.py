@@ -26,7 +26,9 @@ import tempfile
 import time
 from pathlib import Path
 
-REPO = "gabbarX/Federated-Inference"
+# Correct only after the repository transfer completes (see ADR-0001).
+# Do not run this script until then.
+REPO = "bailment/bailment"
 ROOT = Path(__file__).resolve().parent.parent
 BACKLOG = ROOT / "BACKLOG.md"
 MAP_FILE = Path(__file__).resolve().parent / ".issue-map.json"
@@ -91,7 +93,7 @@ FOOTER = (
     "\n\n---\n"
     "Source: [`BACKLOG.md`](" + BACKLOG_URL + ") &middot; ticket `{tid}` "
     "&middot; epic **{epic_id} - {epic_title}**\n\n"
-    "Derived from `Readme.md` (Consign PRD v0.2). Edit the ticket in `BACKLOG.md` "
+    "Derived from `Readme.md` (Bailment PRD v0.2). Edit the ticket in `BACKLOG.md` "
     "if scope changes, so the backlog and the issue tracker do not diverge.\n"
 )
 

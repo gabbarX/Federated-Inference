@@ -1,6 +1,6 @@
-# Consign — Ticket Backlog
+# Bailment — Ticket Backlog
 
-Derived from `Readme.md` (PRD v0.2, 10 Aug 2026) and `spec/consign-profile-v0.1.md`.
+Derived from `Readme.md` (PRD v0.2, 10 Aug 2026) and `spec/bailment-profile-v0.1.md`.
 
 **Status:** filed as GitHub issues on `gabbarX/Federated-Inference`.
 **Generated:** 11 Aug 2026. **126 tickets across 16 epics.**
@@ -68,12 +68,12 @@ Capacity is solo with no fixed deadline (D30). Sizes are therefore serial-time e
 
 Everything in §16 of the PRD, as tickets. CN-001 gates the entire programme; the PRD says so itself ("The one thing to settle before Phase 0").
 
-### CN-001 — Spike: prove the Consign extension set is expressible as conformant A2A v1.0 extensions
+### CN-001 — Spike: prove the Bailment extension set is expressible as conformant A2A v1.0 extensions
 
 **Traces:** D4, §16, Phase 0 exit criterion, Risk "A2A extensions cannot express the model"
 **Phase:** 0 · **Priority:** MUST · **Size:** M · **Blocks:** every other ticket in E2–E13
 
-Build a throwaway spike that declares all seven extensions (`consign/constraints/v1`, `authority`, `budget`, `contract`, `artifacts`, `verification`, `receipts`) as real A2A v1.0 extensions and round-trips a task through the A2A Go SDK.
+Build a throwaway spike that declares all seven extensions (`bailment/constraints/v1`, `authority`, `budget`, `contract`, `artifacts`, `verification`, `receipts`) as real A2A v1.0 extensions and round-trips a task through the A2A Go SDK.
 
 **Done when:**
 - Each of the seven extension namespaces is declared and negotiated through the SDK's extension mechanism, not smuggled through free-form metadata.
@@ -88,7 +88,7 @@ Build a throwaway spike that declares all seven extensions (`consign/constraints
 **Traces:** §16, D28, Readme "Naming placeholder"
 **Phase:** 0 · **Priority:** MUST · **Size:** S · **Blocks:** CN-093
 
-Choose a final name before the spec goes public. CONSIGN is a working placeholder; `Hermes Federation` was already retired once for using another project's name.
+Resolved: the product is named **Bailment**, recorded in [`docs/adr/0001-product-name.md`](docs/adr/0001-product-name.md). The working name and the earlier `Hermes Federation` name were both retired; see the ADR for the candidates considered and the availability evidence.
 
 **Done when:** name chosen and recorded in an ADR; find-and-replace applied across `spec/`, `node/`, `adapters/`, `README`, and module paths; domain and extension namespace availability checked.
 
@@ -154,7 +154,7 @@ Contract-scoped amendments only, so steering cannot smuggle content past the egr
 **Traces:** §7.4, D24
 **Phase:** 0 · **Priority:** MUST · **Size:** S
 
-Create `spec/`, `node/cmd/consignd`, `node/internal/{transport,identity,authority,policy,state,exec,cas,verify,audit,route}`, `adapters/{hermes-python,refworker}`, `sdk/`, `conformance/`. Go module, CI, lint, and test targets included in this ticket rather than split out.
+Create `spec/`, `node/cmd/bailment`, `node/internal/{transport,identity,authority,policy,state,exec,cas,verify,audit,route}`, `adapters/{hermes-python,refworker}`, `sdk/`, `conformance/`. Go module, CI, lint, and test targets included in this ticket rather than split out.
 
 **Done when:** `go build ./...` and `go test ./...` pass on an empty skeleton; CI runs both on push; `spec/` carries its own tag namespace (`spec-vX.Y`) distinct from implementation tags.
 
@@ -204,7 +204,7 @@ Signed vectors under `spec/vectors/` covering valid and invalid cases for each e
 
 **Traces:** §13.2, §8, AC-014 · **Phase:** 1 · **Priority:** MUST · **Size:** L · **Depends:** CN-013, CN-014; the implementation tickets it documents
 
-Cover the constraints, contract, artifacts, and verification extensions in `spec/consign-profile-v0.1.md`. Per §13.1 this lands *after* the corresponding daemon work, not before.
+Cover the constraints, contract, artifacts, and verification extensions in `spec/bailment-profile-v0.1.md`. Per §13.1 this lands *after* the corresponding daemon work, not before.
 
 **Done when:** the four extensions are specified to the level where CN-093's independent implementer needs no access to the reference source.
 
@@ -350,7 +350,7 @@ All ten events from §8.3, each carrying `task_id`, monotonic `seq`, and `emitte
 
 ### CN-039 — Budgets as attenuating caveats
 
-**Traces:** FR-025, §8.1 `consign/budget/v1` · **Phase:** 1 · **Priority:** MUST · **Size:** M · **Depends:** CN-004
+**Traces:** FR-025, §8.1 `bailment/budget/v1` · **Phase:** 1 · **Priority:** MUST · **Size:** M · **Depends:** CN-004
 
 Wall time, model calls, tool calls, and storage, expressed as token caveats that subdivide on re-delegation.
 
