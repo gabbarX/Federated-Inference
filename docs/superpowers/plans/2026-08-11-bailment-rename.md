@@ -155,14 +155,27 @@ class TestRenameArtifacts(unittest.TestCase):
             self.assertNotIn("bailmentd", read(rel).lower(), f"'bailmentd' in {rel}")
 
     def test_extension_uris_use_bailment_dev(self):
-        spec = (ROOT / "spec" / "bailment-profile-v0.1.md").read_text(encoding="utf-8")
+        # Guard first: without it this raises FileNotFoundError, and an
+        # erroring test is not a valid RED state.
+        spec_path = ROOT / "spec" / "bailment-profile-v0.1.md"
+        self.assertTrue(spec_path.exists(), "spec/bailment-profile-v0.1.md missing")
+        spec = spec_path.read_text(encoding="utf-8")
         for ext in ("contract", "constraints", "authority", "budget",
                     "artifacts", "verification", "receipts"):
             self.assertIn(f"https://bailment.dev/ext/{ext}/v1", spec)
 
     def test_prd_version_bumped(self):
+        # A bare `assertIn("0.3", readme)` is worthless here: it matches the
+        # existing heading "### 10.3 Threats and mitigations" and is green
+        # before the rename. Assert the two places the version actually
+        # lives, without tripping on the revision-history "**0.2**" rows.
         readme = read("Readme.md")
-        self.assertIn("0.3", readme, "PRD version not bumped to 0.3")
+        self.assertIn("Version 0.3", readme, "PRD header line still not v0.3")
+        self.assertNotIn("Version 0.2", readme, "PRD header line still claims v0.2")
+        self.assertRegex(
+            readme, r"\|\s*\*\*Version\*\*\s*\|\s*0\.3\s*\|",
+            "section 0 document-control Version row not bumped to 0.3",
+        )
 
     def test_cover_banner_annotated(self):
         readme = read("Readme.md")
