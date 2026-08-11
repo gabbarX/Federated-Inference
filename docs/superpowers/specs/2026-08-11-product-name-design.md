@@ -168,12 +168,16 @@ inventing new diagrams is design work, not a rename.
 The rename is verified by executable invariants, written before the rename
 is performed:
 
-1. `grep -ri consign` over tracked files returns hits in exactly three
+1. `grep -ri consign` over tracked files returns hits only in the five
    permitted locations, and nowhere else:
    - `docs/adr/0001-product-name.md` — the decision record
    - `docs/superpowers/specs/2026-08-11-product-name-design.md` — this document
+   - `docs/superpowers/plans/2026-08-11-bailment-rename.md` — the implementation plan
    - `Readme.md`, in the rewritten "Name" note and the §0 "Product" row,
      where "formerly Consign" is deliberate history
+   - `tools/test_rename.py` — it necessarily contains the string it scans for
+
+   The documents *about* the rename cannot avoid naming the old product.
 
    In particular `BACKLOG.md` must contain **zero** occurrences: the CN-002
    ticket body is rewritten to record the decision in the past tense

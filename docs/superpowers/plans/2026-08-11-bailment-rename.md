@@ -17,7 +17,14 @@ Copied verbatim from `docs/superpowers/specs/2026-08-11-product-name-design.md`.
 - **Extension namespace host:** `https://consign.example/…` → `https://bailment.dev/…`. No occurrence of `consign.example` may remain anywhere.
 - **Never modify:** the 126 `CN-###` ticket IDs; `tools/.issue-map.json` (must stay byte-identical to `main`); role names `originator`/`participant`; object names `task envelope`/`work package`; any `hermes-agent` / `Hermes adapter` reference naming the real external project.
 - **`Hermes Federation`** may appear only as retired-name history, never as a current name.
-- **`consign` (case-insensitive) may survive in exactly three places:** `docs/adr/0001-product-name.md`, `docs/superpowers/specs/2026-08-11-product-name-design.md`, and `Readme.md` (the "Name" note and the §0 "Product" row, as deliberate history). `BACKLOG.md` and `spec/` must contain **zero** occurrences.
+- **`consign` (case-insensitive) may survive only in these five files**, which are exactly `CONSIGN_ALLOWLIST` in `tools/test_rename.py`:
+  - `docs/adr/0001-product-name.md` — the decision record
+  - `docs/superpowers/specs/2026-08-11-product-name-design.md` — the design doc
+  - `docs/superpowers/plans/2026-08-11-bailment-rename.md` — this plan
+  - `Readme.md` — the "Name" note and the §0 "Product" row, as deliberate history
+  - `tools/test_rename.py` — it necessarily contains the string it scans for
+
+  The last three of those are documents *about* the rename, so they cannot avoid the word. `BACKLOG.md` and `spec/` must contain **zero** occurrences.
 - **Branch:** all work on `rename/bailment`. Never commit to `main`.
 - **Do not** create, regenerate or edit any file under `media/`. Only the Readme's *text* annotation about the banner changes.
 - **Do not** run `tools/backlog_to_issues.py`. It performs live GitHub writes.
