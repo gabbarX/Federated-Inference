@@ -799,7 +799,7 @@ Twenty-eight of v0.1's open questions are now closed (Appendix A.5). What remain
 
 | **Decision** | **Options** | **Recommended starting point** |
 | --- | --- | --- |
-| **Product name** | BAILMENT placeholder; alternatives | Choose before the spec goes public; one find-and-replace |
+| **Product name** | ~~BAILMENT placeholder; alternatives~~ Resolved — see ADR-0001 | N/A |
 | **Isolation runtime** | OCI/runc; gVisor; Firecracker; Kata | Start with OCI for reach; evaluate gVisor when hostile adapters become a real threat model |
 | **Token library** | Biscuit; macaroons; custom CBOR | Biscuit — attenuation is native rather than bolted on |
 | **Task contract registry** | In-repo only; per-org publication; a shared catalogue | In-repo for v0.1; publication rules once a second implementer appears |
