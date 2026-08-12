@@ -4,7 +4,7 @@
 
 An open protocol for delegating agent work packages across organizational boundaries
 
-Working product definition · Version 0.3 · 10 August 2026
+Working product definition · Version 0.3 · 11 August 2026
 
 ![cover banner](media/cover_banner.png)
 
@@ -28,7 +28,7 @@ Working product definition · Version 0.3 · 10 August 2026
 | **Document** | Product Requirements Document |
 | **Version** | 0.3 |
 | **Status** | Draft for architecture, security, and implementer review |
-| **Date** | 10 August 2026 |
+| **Date** | 11 August 2026 |
 | **Primary audience** | Protocol implementers, platform engineers, model operators, security reviewers, node operators |
 | **Implementation basis** | A standalone Go node daemon implementing a published extension profile of **A2A v1.0**. Agent runtimes attach through a thin worker-adapter interface; `hermes-agent` is adapter #1, not the substrate. |
 | **Delivery boundary** | Two independently operated nodes exchanging one deterministic task contract, plus a runnable conformance suite |
@@ -799,7 +799,7 @@ Twenty-eight of v0.1's open questions are now closed (Appendix A.5). What remain
 
 | **Decision** | **Options** | **Recommended starting point** |
 | --- | --- | --- |
-| **Product name** | ~~BAILMENT placeholder; alternatives~~ Resolved — see ADR-0001 | N/A |
+| **Product name** | ~~CONSIGN placeholder; alternatives~~ Resolved — see ADR-0001 | N/A |
 | **Isolation runtime** | OCI/runc; gVisor; Firecracker; Kata | Start with OCI for reach; evaluate gVisor when hostile adapters become a real threat model |
 | **Token library** | Biscuit; macaroons; custom CBOR | Biscuit — attenuation is native rather than bolted on |
 | **Task contract registry** | In-repo only; per-org publication; a shared catalogue | In-repo for v0.1; publication rules once a second implementer appears |

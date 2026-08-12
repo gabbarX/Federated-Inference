@@ -80,7 +80,7 @@ art familiar to the security-and-compliance-reviewer persona (§4.1).
   issues by title.
 - Role names (originator, participant) and object names (task envelope,
   work package) are unchanged. Adopting bailor/bailee would force legal
-  jargon on every reader, against NFR-014.
+  jargon on every reader.
 - The repository moves to `github.com/bailment/bailment`, giving a Go
   module path of `github.com/bailment/bailment` for D24's monorepo.
 - CN-093 (#76) is unblocked; CN-003 and CN-004 inherit this ADR convention.

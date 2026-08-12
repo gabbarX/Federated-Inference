@@ -1,7 +1,7 @@
 # The Bailment Profile of A2A v1.0
 
 **Specification version:** 0.1 (draft) · **Date:** 10 August 2026 · **Status:** Draft for implementer review
-**Editor:** TBD · **Companion document:** `../Hermes_Federation_PRD_v0.1.md` (product requirements, v0.2)
+**Editor:** TBD · **Companion document:** `../Readme.md` — the Bailment PRD, v0.3
 
 ---
 

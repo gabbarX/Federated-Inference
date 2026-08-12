@@ -1,8 +1,9 @@
 # Bailment — Ticket Backlog
 
-Derived from `Readme.md` (PRD v0.2, 10 Aug 2026) and `spec/bailment-profile-v0.1.md`.
+Derived from `Readme.md` (PRD v0.3, 11 Aug 2026) and `spec/bailment-profile-v0.1.md`.
 
 **Status:** filed as GitHub issues on `gabbarX/Federated-Inference`.
+The repository transfers to `bailment/bailment` after this rename merges; see ADR-0001 for the sequencing.
 **Generated:** 11 Aug 2026. **126 tickets across 16 epics.**
 
 This file is the source of truth. Issues are generated from it by
@@ -85,7 +86,7 @@ Build a throwaway spike that declares all seven extensions (`bailment/constraint
 
 ### CN-002 — Decide the product name and execute the rename
 
-**Traces:** §16, D28, Readme "Naming placeholder"
+**Traces:** §16, D28, Readme "Name" note
 **Phase:** 0 · **Priority:** MUST · **Size:** S · **Blocks:** CN-093
 
 Resolved: the product is named **Bailment**, recorded in [`docs/adr/0001-product-name.md`](docs/adr/0001-product-name.md). The working name and the earlier `Hermes Federation` name were both retired; see the ADR for the candidates considered and the availability evidence.

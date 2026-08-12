@@ -147,7 +147,7 @@ documentation.
 | --- | --- |
 | The 126 `CN-` ticket IDs | Opaque stable identifiers bound to live GitHub issues by title. Renaming means retitling 126 issues and rewriting the issue map for zero functional gain. |
 | `tools/.issue-map.json` | Must stay byte-identical — it is the binding between `CN-` IDs and issue numbers. |
-| Role names (originator, participant) | Adopting bailor/bailee forces legal jargon on every reader, against NFR-014, and expands a naming ticket into a spec-wide vocabulary change. |
+| Role names (originator, participant) | Adopting bailor/bailee forces legal jargon on every reader, and expands a naming ticket into a spec-wide vocabulary change. |
 | Object names (task envelope, work package) | Same reason. Renaming the delegated unit to "a bailment" is defensible but is its own ticket. |
 | `hermes-agent` references | Names a real external project — worker adapter #1 (§A.4), not the product. |
 | The three PNGs in `media/` | Cannot be find-and-replaced. See below. |

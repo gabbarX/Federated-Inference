@@ -93,7 +93,7 @@ FOOTER = (
     "\n\n---\n"
     "Source: [`BACKLOG.md`](" + BACKLOG_URL + ") &middot; ticket `{tid}` "
     "&middot; epic **{epic_id} - {epic_title}**\n\n"
-    "Derived from `Readme.md` (Bailment PRD v0.2). Edit the ticket in `BACKLOG.md` "
+    "Derived from `Readme.md` (Bailment PRD v0.3). Edit the ticket in `BACKLOG.md` "
     "if scope changes, so the backlog and the issue tracker do not diverge.\n"
 )
 
