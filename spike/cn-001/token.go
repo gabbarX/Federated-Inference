@@ -25,6 +25,11 @@ import (
 // TokenType is the capability token's typ discriminator (§7.1).
 const TokenType = "consign.token/v1"
 
+// CodeTokenInvalid is the §15 code §7.3 folds every chain, signature and
+// attenuation failure into. The collapse is deliberate: a refusal that said
+// which check failed would be an oracle for probing a peer's policy (§8.5).
+const CodeTokenInvalid = "E_TOKEN_INVALID"
+
 // Budget holds the budget caveats (§7.1, §7.5).
 type Budget struct {
 	Deadline         string `json:"deadline"`
@@ -213,6 +218,55 @@ func VerifyChain(keys Keyring, selfOrg string, tok Token, now time.Time) error {
 		}
 	}
 	return nil
+}
+
+// MintChild is the delegating side of §7.4 to §7.6: it attenuates parent into a
+// child token for delegate, deducting the child's budget from ledger as §7.5
+// requires be done at delegation time.
+//
+// The order of the checks is the order in which a holder loses the right to
+// delegate at all. Depth comes first, because §7.6 makes a depth-0 holder
+// unable to re-delegate however much budget or permission it otherwise has;
+// then the parent's allowed_delegates; then the budget. The child it builds is
+// run back through CheckAttenuation before signing, so a mistake here is caught
+// by the same rule a receiving node would apply.
+func MintChild(parent Token, ledger *Ledger, delegate, tokenID, kid string, budget Budget, priv ed25519.PrivateKey, now time.Time) (Token, error) {
+	if parent.Caveats.MaxDelegationDepth <= 0 {
+		return Token{}, fmt.Errorf("%w: %s permits no further delegation", ErrDepthExhausted, parent.TokenID)
+	}
+	if !slices.Contains(parent.Caveats.AllowedDelegates, delegate) {
+		return Token{}, fmt.Errorf("%w: %s is not in allowed_delegates of %s", ErrNotPermitted, delegate, parent.TokenID)
+	}
+	if err := ledger.Subdivide(budget); err != nil {
+		return Token{}, err
+	}
+
+	child := Token{
+		Typ:        TokenType,
+		TokenID:    tokenID,
+		Originator: parent.Originator,
+		RootTaskID: parent.RootTaskID,
+		IssuedAt:   now.UTC().Format(time.RFC3339),
+		ExpiresAt:  parent.ExpiresAt,
+		Caveats: Caveats{
+			Contract:             slices.Clone(parent.Caveats.Contract),
+			DataClass:            parent.Caveats.DataClass,
+			AllowedOrganizations: []string{delegate},
+			AllowedTools:         slices.Clone(parent.Caveats.AllowedTools),
+			NetworkAccess:        parent.Caveats.NetworkAccess,
+			SideEffects:          parent.Caveats.SideEffects,
+			MaxDelegationDepth:   parent.Caveats.MaxDelegationDepth - 1,
+			// A child minted at the bottom of the permitted depth names no
+			// delegates of its own, which is the narrowest legal choice.
+			AllowedDelegates: nil,
+			Budget:           budget,
+		},
+		Chain: []Token{parent},
+	}
+	if err := CheckAttenuation(parent, child); err != nil {
+		return Token{}, fmt.Errorf("minting %s: %w", tokenID, err)
+	}
+	return Sign(child, kid, priv)
 }
 
 // dataClassRank orders the data classes of §7.2.1:

@@ -26,6 +26,38 @@ func withResponseServiceParams(next http.Handler) http.Handler {
 	})
 }
 
+// withStreamingServiceParams is the second half of the response echo, and it
+// exists because the first half provably cannot work on message/stream.
+//
+// jsonrpcHandler.handleStreamingRequest calls sseWriter.WriteHeaders() -- which
+// ends in w.writer.WriteHeader(http.StatusOK) -- *before* it dispatches to the
+// request handler. The interceptor stack, and therefore Activate() and
+// consignExtensions.After, all run after that point, so anything they add to
+// rw.Header() is added to an already-committed header map and never reaches the
+// wire. Outer http.Handler middleware is the only place that holds both the
+// request's A2A-Extensions values and an un-committed response header.
+//
+// The cost of moving out here is real and is the reason both halves exist: this
+// middleware cannot see a2asrv's CallContext (jsonrpcHandler.ServeHTTP calls
+// NewCallContext unconditionally and shadows any outer one), so it recomputes
+// requested ∩ declared instead of reporting the SDK's own ActivatedURIs().
+// It is gated on the Accept header the SDK's own streaming client sets
+// (a2aclient/jsonrpc.go sendStreamingRequest: Accept: text/event-stream) so
+// that the non-streaming path keeps using the interceptor and no URI is echoed
+// twice.
+func withStreamingServiceParams(declared []a2a.AgentExtension, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if req.Header.Get("Accept") == "text/event-stream" {
+			for _, uri := range req.Header.Values(a2a.SvcParamExtensions) {
+				if declares(declared, uri) {
+					rw.Header().Add(a2a.SvcParamExtensions, uri)
+				}
+			}
+		}
+		next.ServeHTTP(rw, req)
+	})
+}
+
 // consignExtensions is the a2asrv.CallInterceptor that implements the Consign
 // half of A2A extension negotiation: it rejects tasks requesting a CORE-required
 // extension this node has not declared (§2.3), activates the declared

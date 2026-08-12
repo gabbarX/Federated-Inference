@@ -38,7 +38,7 @@ func TestUndeclaredRequiredExtensionRejected(t *testing.T) {
 
 	// Record the A2A error surface a Consign E_EXTENSION_UNSUPPORTED has to map
 	// onto, read off the JSON-RPC wire rather than inferred from the typed error.
-	code, message := rawSendMessageError(t, n, ExtensionURIs(AllExtensions()))
+	code, message := rawSendMessageError(t, n, ExtensionURIs(AllExtensions()), nil)
 	t.Logf("JSON-RPC error on the wire: code=%d message=%q", code, message)
 	if code != -32008 {
 		t.Fatalf("JSON-RPC error code = %d, want -32008 (ErrExtensionSupportRequired)", code)
@@ -66,20 +66,24 @@ func TestRequiredExtensionUndeclaredByClientRejectedBySDK(t *testing.T) {
 
 // rawSendMessageError posts a JSON-RPC SendMessage by hand so the numeric error
 // code and message can be read directly off the wire.
-func rawSendMessageError(t *testing.T, n *node, extensions []string) (int, string) {
+func rawSendMessageError(t *testing.T, n *node, extensions []string, metadata map[string]any) (int, string) {
 	t.Helper()
 
+	params := map[string]any{
+		"message": map[string]any{
+			"messageId": "msg-cn-001",
+			"role":      "user",
+			"parts":     []any{map[string]any{"kind": "text", "text": "submit"}},
+		},
+	}
+	if metadata != nil {
+		params["metadata"] = metadata
+	}
 	body, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0",
 		"id":      "cn-001",
 		"method":  "SendMessage",
-		"params": map[string]any{
-			"message": map[string]any{
-				"messageId": "msg-cn-001",
-				"role":      "user",
-				"parts":     []any{map[string]any{"kind": "text", "text": "submit"}},
-			},
-		},
+		"params":  params,
 	})
 	if err != nil {
 		t.Fatalf("marshalling raw request: %v", err)

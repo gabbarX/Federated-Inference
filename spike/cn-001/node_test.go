@@ -16,6 +16,17 @@ import (
 // wellKnownCardPath is where A2A v1.0 publishes the public Agent Card.
 const wellKnownCardPath = "/.well-known/agent-card.json"
 
+// jsonValue renders a typed Consign payload into the JSON-generic form A2A
+// metadata accepts. See ToMetadata for why the conversion is mandatory.
+func jsonValue(t *testing.T, v any) map[string]any {
+	t.Helper()
+	m, err := ToMetadata(v)
+	if err != nil {
+		t.Fatalf("converting %T to metadata: %v", v, err)
+	}
+	return m
+}
+
 // consignCard builds an Agent Card declaring the given Consign extensions.
 func consignCard(name, url string, exts []a2a.AgentExtension) *a2a.AgentCard {
 	return &a2a.AgentCard{
@@ -25,7 +36,10 @@ func consignCard(name, url string, exts []a2a.AgentExtension) *a2a.AgentCard {
 		SupportedInterfaces: []*a2a.AgentInterface{
 			a2a.NewAgentInterface(url, a2a.TransportProtocolJSONRPC),
 		},
-		Capabilities:       a2a.AgentCapabilities{Extensions: exts},
+		// Streaming must be declared for the SSE path to be reachable at all:
+		// a2aclient.SendStreamingMessage silently falls back to SendMessage when
+		// the card says otherwise, and defaultRequestHandler refuses the call.
+		Capabilities:       a2a.AgentCapabilities{Extensions: exts, Streaming: true},
 		DefaultInputModes:  []string{"application/json"},
 		DefaultOutputModes: []string{"application/json"},
 		Skills:             []a2a.AgentSkill{},
@@ -67,22 +81,45 @@ type node struct {
 }
 
 // startNode brings up an a2asrv JSON-RPC server plus its public Agent Card on
-// loopback HTTP, declaring exts in capabilities.extensions[].
+// loopback HTTP, declaring exts in capabilities.extensions[], behind the echo
+// executor.
 func startNode(t *testing.T, name string, exts []a2a.AgentExtension) *node {
+	t.Helper()
+	return startNodeWith(t, name, exts, echoExecutor{})
+}
+
+// startNodeWith is startNode with a caller-supplied agent and any extra call
+// interceptors, which is what the three-node delegation chain needs.
+func startNodeWith(t *testing.T, name string, exts []a2a.AgentExtension, exec a2asrv.AgentExecutor, extra ...a2asrv.CallInterceptor) *node {
+	t.Helper()
+	return startNodeCustom(t, name, exts, exec, true, extra...)
+}
+
+// startNodeCustom additionally chooses whether the node wires up the streaming
+// half of the response echo. Only the test that characterizes what the
+// interceptor alone can do passes false; every other node passes true, because
+// without it a Consign node reports no activated extensions at all on
+// message/stream.
+func startNodeCustom(t *testing.T, name string, exts []a2a.AgentExtension, exec a2asrv.AgentExecutor, streamingEcho bool, extra ...a2asrv.CallInterceptor) *node {
 	t.Helper()
 	srv := httptest.NewUnstartedServer(nil)
 	url := "http://" + srv.Listener.Addr().String()
 	card := consignCard(name, url, exts)
 
+	interceptors := append([]a2asrv.CallInterceptor{&consignExtensions{declared: exts}}, extra...)
 	handler := a2asrv.NewHandler(
-		echoExecutor{},
+		exec,
 		a2asrv.WithCapabilityChecks(&card.Capabilities),
-		a2asrv.WithCallInterceptors(&consignExtensions{declared: exts}),
+		a2asrv.WithCallInterceptors(interceptors...),
 	)
 
+	var jsonrpc http.Handler = withResponseServiceParams(a2asrv.NewJSONRPCHandler(handler))
+	if streamingEcho {
+		jsonrpc = withStreamingServiceParams(exts, jsonrpc)
+	}
 	mux := http.NewServeMux()
 	mux.Handle(wellKnownCardPath, a2asrv.NewStaticAgentCardHandler(card))
-	mux.Handle("/", withResponseServiceParams(a2asrv.NewJSONRPCHandler(handler)))
+	mux.Handle("/", jsonrpc)
 
 	srv.Config.Handler = mux
 	srv.Start()
