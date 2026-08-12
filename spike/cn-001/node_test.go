@@ -135,8 +135,9 @@ func startNodeCustom(t *testing.T, name string, exts []a2a.AgentExtension, exec 
 type headerRecorder struct {
 	inner http.RoundTripper
 
-	mu   sync.Mutex
-	last http.Header
+	mu         sync.Mutex
+	last       http.Header
+	lastStatus int
 }
 
 func (h *headerRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -144,6 +145,7 @@ func (h *headerRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	if resp != nil {
 		h.mu.Lock()
 		h.last = resp.Header.Clone()
+		h.lastStatus = resp.StatusCode
 		h.mu.Unlock()
 	}
 	return resp, err
@@ -154,6 +156,15 @@ func (h *headerRecorder) Last() http.Header {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.last
+}
+
+// LastStatus returns the HTTP status code of the most recent exchange. It
+// matters because on the streaming binding an A2A error can arrive under a
+// 200, framed as an SSE event, rather than as an HTTP-level error response.
+func (h *headerRecorder) LastStatus() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.lastStatus
 }
 
 // newClient builds an a2aclient bound to card over the JSON-RPC binding, with a

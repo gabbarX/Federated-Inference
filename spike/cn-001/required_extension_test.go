@@ -1,10 +1,12 @@
 package smoke
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
@@ -117,4 +119,78 @@ func rawSendMessageError(t *testing.T, n *node, extensions []string, metadata ma
 		t.Fatalf("raw JSON-RPC response carried no error object, HTTP status %s", resp.Status)
 	}
 	return envelope.Error.Code, envelope.Error.Message
+}
+
+// rawStreamMessageError posts a JSON-RPC SendStreamingMessage by hand and reads
+// the first SSE data frame, so the HTTP status, the content type and the
+// numeric JSON-RPC code of a streaming refusal are all observed directly rather
+// than inferred from the typed error a2aclient reconstructs.
+func rawStreamMessageError(t *testing.T, n *node, extensions []string, metadata map[string]any) (status int, contentType string, code int, message string) {
+	t.Helper()
+
+	params := map[string]any{
+		"message": map[string]any{
+			"messageId": "msg-cn-001-stream",
+			"role":      "user",
+			"parts":     []any{map[string]any{"kind": "text", "text": "submit"}},
+		},
+	}
+	if metadata != nil {
+		params["metadata"] = metadata
+	}
+	body, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      "cn-001-stream",
+		"method":  "SendStreamingMessage",
+		"params":  params,
+	})
+	if err != nil {
+		t.Fatalf("marshalling raw streaming request: %v", err)
+	}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, n.URL, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("building raw streaming request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	for _, uri := range extensions {
+		req.Header.Add(a2a.SvcParamExtensions, uri)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("raw streaming POST failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var frame []byte
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if after, found := strings.CutPrefix(line, "data:"); found {
+			frame = []byte(strings.TrimSpace(after))
+			break
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("reading the SSE stream: %v", err)
+	}
+	if frame == nil {
+		t.Fatalf("the SSE stream carried no data frame; HTTP status %s", resp.Status)
+	}
+
+	var envelope struct {
+		Error *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(frame, &envelope); err != nil {
+		t.Fatalf("decoding the SSE data frame %q: %v", frame, err)
+	}
+	if envelope.Error == nil {
+		t.Fatalf("the first SSE data frame carried no error object: %s", frame)
+	}
+	return resp.StatusCode, resp.Header.Get("Content-Type"), envelope.Error.Code, envelope.Error.Message
 }

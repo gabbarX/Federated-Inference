@@ -2,6 +2,7 @@ package smoke
 
 import (
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -228,4 +229,89 @@ func consignCodeOf(t *testing.T, err error) string {
 	}
 	t.Logf("ErrorInfo detail = %v", a2aErr.ErrorInfo().Value)
 	return meta["consign_code"]
+}
+
+// TestContractMismatchRejectedOnTheStreamingPath is demonstration 4 on the
+// binding §8.3 also permits for submission, and it is a separate test because
+// the refusal does not arrive the same way.
+//
+// jsonrpcHandler.handleStreamingRequest calls sseWriter.WriteHeaders() -- which
+// ends in WriteHeader(http.StatusOK) -- before it dispatches to the intercepted
+// handler, so by the time consignAcceptance.Before refuses, the HTTP status is
+// already 200 and committed. eventSeqToSSEDataStream's handleError then marshals
+// the JSON-RPC error object into an SSE data frame. The refusal therefore
+// arrives mid-stream under a 200 with Content-Type: text/event-stream, not as
+// an HTTP-level JSON-RPC error response.
+//
+// This is the same ordering fact that defeats the interceptor-based extension
+// echo. It governs refusal too, and the mapping table in the report now carries
+// a binding column because of it.
+func TestContractMismatchRejectedOnTheStreamingPath(t *testing.T) {
+	local := codeReviewContract(t)
+	divergent := local
+	divergent.Validators = append([]Validator(nil), local.Validators...)
+	divergent.Validators[2].MustPass = true
+	divergent, err := divergent.Sealed()
+	if err != nil {
+		t.Fatalf("sealing the consumer's divergent copy: %v", err)
+	}
+
+	n := startNodeWith(t, "producer-streaming", AllExtensions(), echoExecutor{}, &consignAcceptance{contracts: []Contract{local}})
+	client, rec := newClient(t, n.Card)
+	ctx := a2aclient.AttachServiceParams(t.Context(), a2aclient.ServiceParams{
+		a2a.SvcParamExtensions: ExtensionURIs(AllExtensions()),
+	})
+
+	var events int
+	var streamErr error
+	for _, err := range client.SendStreamingMessage(ctx, &a2a.SendMessageRequest{
+		Message:  a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart("submit")),
+		Metadata: map[string]any{ExtContract: jsonValue(t, ContractRef{ID: local.ID, Digest: divergent.Digest})},
+	}) {
+		if err != nil {
+			streamErr = err
+			continue
+		}
+		events++
+	}
+
+	if streamErr == nil {
+		t.Fatalf("SendStreamingMessage() with a differing contract digest yielded %d events and no error, want a refusal", events)
+	}
+	if events != 0 {
+		t.Fatalf("stream yielded %d events before the refusal, want 0: a §8.3 refusal must transfer nothing", events)
+	}
+
+	// The typed error survives the SSE framing intact, so a client sees the same
+	// sentinel and the same Consign code on either binding.
+	if !errors.Is(streamErr, a2a.ErrInvalidParams) {
+		t.Fatalf("streaming error = %v, want it to wrap %v", streamErr, a2a.ErrInvalidParams)
+	}
+	if got := consignCodeOf(t, streamErr); got != CodeContractMismatch {
+		t.Fatalf("Consign code on the streaming path = %q, want %q", got, CodeContractMismatch)
+	}
+
+	// What differs is the envelope it arrives in, and this is the finding.
+	if status := rec.LastStatus(); status != http.StatusOK {
+		t.Fatalf("HTTP status for a refused streaming submission = %d, want 200: "+
+			"sseWriter.WriteHeaders() commits the response before dispatch", status)
+	}
+	if ct := rec.Last().Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("Content-Type for a refused streaming submission = %q, want text/event-stream", ct)
+	}
+	t.Logf("streaming refusal: HTTP %d, Content-Type %q, error %v",
+		rec.LastStatus(), rec.Last().Get("Content-Type"), streamErr)
+
+	// Read the same refusal off the wire by hand, so the numeric JSON-RPC code
+	// and the SSE framing are observed rather than inferred from the typed error.
+	status, contentType, code, message := rawStreamMessageError(t, n, ExtensionURIs(AllExtensions()),
+		map[string]any{ExtContract: jsonValue(t, ContractRef{ID: local.ID, Digest: divergent.Digest})})
+	t.Logf("raw streaming wire: HTTP %d, Content-Type %q, JSON-RPC code=%d message=%q",
+		status, contentType, code, message)
+	if status != http.StatusOK || contentType != "text/event-stream" {
+		t.Fatalf("raw streaming refusal arrived as HTTP %d %q, want 200 text/event-stream", status, contentType)
+	}
+	if code != -32602 {
+		t.Fatalf("JSON-RPC error code inside the SSE frame = %d, want -32602 (ErrInvalidParams)", code)
+	}
 }

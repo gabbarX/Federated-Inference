@@ -287,3 +287,125 @@ func stringsOf(t *testing.T, v any) []string {
 	}
 	return out
 }
+
+// TestHolderEnforcesTheGrant covers the §10.4 obligation that sits on the
+// holder rather than on the consumer: a grant authorises one organization to
+// retrieve one set of digests for one task, and unauthorized retrieval is
+// denied with E_GRANT_INVALID.
+//
+// Every case below puts a request on the wire that a well-behaved consumer
+// would never send, using chain.Fetch, which does no client-side screening.
+// That is the point: the consumer-side check in chain.Retrieve is a courtesy,
+// and if it were the only check the holder would be serving protected bytes to
+// anyone who asked.
+func TestHolderEnforcesTheGrant(t *testing.T) {
+	c := startChain(t)
+	obs := c.Submit(t)
+
+	var carried ArtifactPayload
+	if err := FromMetadata(obs.Artifacts[0].Metadata[ExtArtifacts], &carried); err != nil {
+		t.Fatalf("decoding artifact metadata: %v", err)
+	}
+	grant, digest := carried.Grant, carried.Record.Digest
+
+	// The discriminating case: the same holder, the same endpoint, the same
+	// digest, served to the organization the grant does name.
+	t.Run("the named recipient is served", func(t *testing.T) {
+		data, err := c.Fetch(t, grant.TaskID, digest, orgA)
+		if err != nil {
+			t.Fatalf("Fetch() as the named recipient = %v, want the bytes", err)
+		}
+		if err := VerifyCAS(digest, data); err != nil {
+			t.Fatalf("bytes served to the named recipient: %v", err)
+		}
+	})
+
+	refusals := []struct {
+		name           string
+		taskID, digest string
+		as             string
+	}{
+		{"another organization", grant.TaskID, digest, orgB},
+		{"the delegate, which was never granted anything", grant.TaskID, digest, orgC},
+		{"another task", "task_someone_elses", digest, orgA},
+		{"a digest this task never published", grant.TaskID, CASRef([]byte("bytes nobody published")), orgA},
+	}
+	for _, tc := range refusals {
+		t.Run(tc.name+" is refused", func(t *testing.T) {
+			data, err := c.Fetch(t, tc.taskID, tc.digest, tc.as)
+			if err == nil {
+				t.Fatalf("Fetch() as %s for task %s = %d bytes, want a refusal", tc.as, tc.taskID, len(data))
+			}
+			// §8.5: one coarse code, and nothing about which conjunct failed or
+			// whether the digest exists at all.
+			if !strings.Contains(err.Error(), CodeGrantInvalid) {
+				t.Fatalf("refusal does not carry %s: %v", CodeGrantInvalid, err)
+			}
+			if strings.Contains(err.Error(), "recipient") || strings.Contains(err.Error(), "task_id") {
+				t.Fatalf("refusal discloses which conjunct failed, which §8.5 forbids: %v", err)
+			}
+			t.Logf("refused (%s): %v", tc.name, err)
+		})
+	}
+}
+
+// TestStreamingEchoReportsDeclaredNotRequested is the discriminating case for
+// the streaming half of the response echo, and it is needed because
+// TestFullRoundTrip cannot supply one: there, requested, declared and asserted
+// are the same seven URIs, so middleware that replayed the request header
+// verbatim -- ignoring declares() entirely -- would pass identically.
+//
+// Here the node declares six and the client asks for seven, so the two sets
+// genuinely differ and only an implementation that intersects them survives.
+//
+// receipts is the URI left out because §2.2 marks it the one namespace CORE
+// does not require, so omitting it does not trip consignExtensions.Before's
+// §2.3 guard and the task is served rather than refused. Omitting a
+// CORE-required URI instead -- budget, say -- would confound the measurement:
+// the header would still be echoed, since the middleware runs before dispatch,
+// but the task would be refused for an unrelated reason.
+func TestStreamingEchoReportsDeclaredNotRequested(t *testing.T) {
+	declared := Without(ExtReceipts)
+	all := ExtensionURIs(AllExtensions())
+	n := startNodeWith(t, "node-without-receipts-streaming", declared, activationReporter{})
+
+	client, rec := newClient(t, n.Card)
+	ctx := a2aclient.AttachServiceParams(t.Context(), a2aclient.ServiceParams{
+		a2a.SvcParamExtensions: all,
+	})
+
+	var inBand []string
+	for ev, err := range client.SendStreamingMessage(ctx, &a2a.SendMessageRequest{
+		Message: a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart("submit")),
+	}) {
+		if err != nil {
+			t.Fatalf("stream error: %v", err)
+		}
+		if status, ok := ev.(*a2a.TaskStatusUpdateEvent); ok && status.Metadata != nil {
+			inBand = stringsOf(t, status.Metadata["activated"])
+		}
+	}
+
+	want := sorted(ExtensionURIs(declared))
+	if len(all) != 7 || len(want) != 6 {
+		t.Fatalf("fixture is wrong: requested %d URIs, declared %d, want 7 and 6", len(all), len(want))
+	}
+
+	echoed := observedActivatedURIs(t, rec)
+	if !slices.Equal(echoed, want) {
+		t.Fatalf("streaming %s response header = %v, want the %d declared URIs %v",
+			a2a.SvcParamExtensions, echoed, len(want), want)
+	}
+	if slices.Contains(echoed, ExtReceipts) {
+		t.Fatalf("%s was requested but not declared, yet the streaming echo reported it as activated", ExtReceipts)
+	}
+
+	// And a2asrv's own activation record agrees, from inside the executor. The
+	// two are computed by different code with no shared state -- the middleware
+	// never sees a2asrv's CallContext -- so this is corroboration rather than a
+	// restatement.
+	if got := sorted(inBand); !slices.Equal(got, want) {
+		t.Fatalf("a2asrv ActivatedURIs() inside the executor = %v, want the %d declared %v", got, len(want), want)
+	}
+	t.Logf("requested %d, declared %d, echoed %d, activated in-band %d", len(all), len(want), len(echoed), len(inBand))
+}

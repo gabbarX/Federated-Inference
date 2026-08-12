@@ -38,6 +38,12 @@ import (
 // substitution is recorded rather than hidden.
 const consignRecipientHeader = "Consign-Recipient"
 
+// consignTaskHeader names the task the retrieval is for. §10.4 scopes a grant
+// to a specific recipient *and* task, so the holder needs both; without the
+// task on the request the task_id conjunct could only ever be checked against
+// the grant's own value, which is no check at all.
+const consignTaskHeader = "Consign-Task"
+
 const kidC = orgC + "#org-2026-08"
 
 // childShare is the slice of its allowance node B hands to node C. It is
@@ -125,15 +131,17 @@ func startChain(t *testing.T) *chain {
 	nodeC := startNodeWith(t, "node-c", AllExtensions(), delegate)
 
 	producer := &producerAgent{
-		org:      orgB,
-		kid:      kidB,
-		signKey:  priv[orgB],
-		keys:     pub,
-		orgKeys:  orgPub,
-		contract: contract,
-		consumer: orgA,
-		delegate: orgC,
-		blobs:    map[string][]byte{},
+		org:        orgB,
+		kid:        kidB,
+		signKey:    priv[orgB],
+		keys:       pub,
+		orgKeys:    orgPub,
+		contract:   contract,
+		consumer:   orgA,
+		delegate:   orgC,
+		blobs:      map[string][]byte{},
+		grants:     map[string]Grant{},
+		servedOnce: map[string]bool{},
 	}
 	producer.startArtifactEndpoint(t)
 	nodeB := startNodeWith(t, "node-b", AllExtensions(), producer, &consignAcceptance{contracts: []Contract{contract}})
@@ -283,30 +291,35 @@ func (o *observed) appendEnvelopes(t *testing.T, metadata map[string]any) {
 
 // Retrieve fetches an artifact from its holder under the grant that came with
 // it (§10.2), and records the bytes node A actually received.
+//
+// The consumer's own grant check is here rather than in Fetch, so that Fetch
+// can put a request on the wire the consumer would not have made. Without that
+// separation the holder's enforcement could never be tested: every request
+// would already have been screened client-side, and a holder that checked
+// nothing would look identical to one that checked everything.
 func (c *chain) Retrieve(t *testing.T, grant Grant, digest string) []byte {
 	t.Helper()
-	data, err := c.retrieve(t, grant, digest, orgA)
+	if err := grant.Check(orgA, grant.TaskID, digest, time.Now()); err != nil {
+		t.Fatalf("the grant that arrived with %s does not authorise this consumer: %v", digest, err)
+	}
+	data, err := c.Fetch(t, grant.TaskID, digest, orgA)
 	if err != nil {
 		t.Fatalf("retrieving %s: %v", digest, err)
 	}
 	return data
 }
 
-func (c *chain) retrieve(t *testing.T, grant Grant, digest, as string) ([]byte, error) {
+// Fetch goes straight to the holder's §10.2 endpoint as the named organization,
+// with no consumer-side screening, and returns whatever the holder decides.
+func (c *chain) Fetch(t *testing.T, taskID, digest, as string) ([]byte, error) {
 	t.Helper()
-	// §10.4 binds the grant to this recipient, task and digest, and the consumer
-	// checks it before spending a round trip on a retrieval the holder will
-	// refuse.
-	if err := grant.Check(as, grant.TaskID, digest, time.Now()); err != nil {
-		return nil, err
-	}
-
 	url := c.Producer.grantEndpoint + "/" + strings.TrimPrefix(digest, casPrefix)
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
 	if err != nil {
 		t.Fatalf("building retrieval request: %v", err)
 	}
 	req.Header.Set(consignRecipientHeader, as)
+	req.Header.Set(consignTaskHeader, taskID)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -445,7 +458,15 @@ type producerAgent struct {
 
 	mu     sync.Mutex
 	blobs  map[string][]byte
-	served int64
+	grants map[string]Grant
+	// servedOnce records which digests have already been counted, so that
+	// artifact_bytes_served means "distinct artifact bytes transferred for this
+	// task" on both sides. The consumer's own tally is a map keyed by digest and
+	// therefore dedupes; without the same rule here the two would disagree the
+	// moment anything is fetched twice, and §12.2's whole premise is that both
+	// parties can arrive at the same number independently.
+	servedOnce map[string]bool
+	served     int64
 }
 
 var _ a2asrv.AgentExecutor = (*producerAgent)(nil)
@@ -460,11 +481,18 @@ func (p *producerAgent) startArtifactEndpoint(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		digest := casPrefix + strings.TrimPrefix(req.URL.Path, "/")
 		recipient := req.Header.Get(consignRecipientHeader)
+		taskID := req.Header.Get(consignTaskHeader)
 
 		p.mu.Lock()
 		data, known := p.blobs[digest]
+		grant, granted := p.grants[digest]
 		p.mu.Unlock()
-		if !known || recipient != p.consumer {
+
+		// §10.4 places the authorization on the holder, so every conjunct is
+		// checked here and not merely by the well-behaved consumer: the grant
+		// must exist, and must name this recipient, this task and this digest,
+		// and must not have expired.
+		if !known || !granted || grant.Check(recipient, taskID, digest, time.Now()) != nil {
 			// §8.5 and §10.4: one coarse code, and no hint about which conjunct
 			// failed or whether the digest exists at all.
 			rw.WriteHeader(http.StatusForbidden)
@@ -473,7 +501,10 @@ func (p *producerAgent) startArtifactEndpoint(t *testing.T) {
 		}
 
 		p.mu.Lock()
-		p.served += int64(len(data))
+		if !p.servedOnce[digest] {
+			p.servedOnce[digest] = true
+			p.served += int64(len(data))
+		}
 		p.mu.Unlock()
 		_, _ = rw.Write(data)
 	}))
@@ -695,9 +726,6 @@ func (p *producerAgent) runTask(ctx context.Context, execCtx *a2asrv.ExecutorCon
 // and returns the A2A artifact event announcing it by reference.
 func (p *producerAgent) publish(execCtx *a2asrv.ExecutorContext, stream *Stream, role, mediaType string, data []byte, now time.Time) (*a2a.TaskArtifactUpdateEvent, int64) {
 	digest := CASRef(data)
-	p.mu.Lock()
-	p.blobs[digest] = data
-	p.mu.Unlock()
 
 	record := ArtifactRecord{
 		Digest:         digest,
@@ -716,6 +744,14 @@ func (p *producerAgent) publish(execCtx *a2asrv.ExecutorContext, stream *Stream,
 		Digests:   []string{digest},
 		ExpiresAt: now.Add(45 * time.Minute).UTC().Format(time.RFC3339),
 	}
+
+	// The holder keeps the grant it issued, because §10.4 makes the holder the
+	// enforcement point. The copy that travels with the artifact tells the
+	// consumer what it may ask for; this copy decides what it gets.
+	p.mu.Lock()
+	p.blobs[digest] = data
+	p.grants[digest] = grant
+	p.mu.Unlock()
 
 	// The artifact itself carries the §10 payload and names the namespace in
 	// artifact.extensions[]; the event carries the §9.1 envelope.

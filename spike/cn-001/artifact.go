@@ -31,6 +31,13 @@ var (
 	ErrDigestMismatch = errors.New("content did not match its address")
 	ErrGrantInvalid   = errors.New("artifact grant missing, expired, or wrong recipient")
 	ErrLabelAboveTask = errors.New("artifact label is above the task's data class")
+
+	// ErrMalformedAddress is deliberately not ErrDigestMismatch. §10.1 makes a
+	// digest mismatch terminal and auditable, and forbids retrying it against
+	// the same holder without operator action; an unparseable reference is a
+	// local mistake with none of those consequences. Collapsing the two would
+	// mean a typo in a reference could raise a security incident.
+	ErrMalformedAddress = errors.New("artifact reference is not a cas://sha256/ address")
 )
 
 const casPrefix = "cas://sha256/"
@@ -46,7 +53,7 @@ func CASRef(data []byte) string {
 // returns a sentinel a caller cannot mistake for a transient failure.
 func VerifyCAS(ref string, data []byte) error {
 	if !strings.HasPrefix(ref, casPrefix) {
-		return fmt.Errorf("artifact reference %q is not a %s address", ref, casPrefix)
+		return fmt.Errorf("%w: %q", ErrMalformedAddress, ref)
 	}
 	if got := CASRef(data); got != ref {
 		return fmt.Errorf("%w: retrieved bytes address to %s, reference says %s", ErrDigestMismatch, got, ref)

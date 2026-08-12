@@ -34,9 +34,21 @@ func TestContentAddressing(t *testing.T) {
 	}
 	t.Logf("rejected: %v", err)
 
-	if err := VerifyCAS("sha256:"+ref, patch); err == nil {
-		t.Fatalf("VerifyCAS() on a malformed address = nil, want an error")
+	// A malformed reference and a digest mismatch must stay distinguishable:
+	// §10.1 makes the latter terminal and auditable and forbids retrying it
+	// against the same holder, and a typo must not trigger any of that.
+	malformed := "sha256:" + ref
+	err = VerifyCAS(malformed, patch)
+	if !errors.Is(err, ErrMalformedAddress) {
+		t.Fatalf("VerifyCAS(%q) = %v, want %v", malformed, err, ErrMalformedAddress)
 	}
+	if errors.Is(err, ErrDigestMismatch) {
+		t.Fatalf("a malformed address reports as a digest mismatch, which §10.1 makes terminal and auditable: %v", err)
+	}
+	if !strings.Contains(err.Error(), malformed) {
+		t.Fatalf("rejection does not name the offending reference: %v", err)
+	}
+	t.Logf("rejected: %v", err)
 }
 
 // TestArtifactLabelBoundsReference covers §10.3's last rule: an artifact must
